@@ -1,0 +1,87 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Accountable/Responsible directory - grows via the creatable dropdown (FR-8), no auth fields.
+model Person {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  accountableWorkspaces Workspace[]  @relation("WorkspaceAccountable")
+  accountableInitiatives Initiative[] @relation("InitiativeAccountable")
+  accountablePrograms   Program[]    @relation("ProgramAccountable")
+  accountableProjects   Project[]    @relation("ProjectAccountable")
+  responsibleTasks      Task[]       @relation("TaskResponsible")
+}
+
+model Workspace {
+  id            String       @id @default(cuid())
+  name          String
+  description   String?
+  status        String?
+  accountableId String?
+  accountable   Person?      @relation("WorkspaceAccountable", fields: [accountableId], references: [id])
+  createdAt     DateTime     @default(now())
+  initiatives   Initiative[]
+}
+
+model Initiative {
+  id            String    @id @default(cuid())
+  workspaceId   String
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  status        String?
+  accountableId String?
+  accountable   Person?   @relation("InitiativeAccountable", fields: [accountableId], references: [id])
+  createdAt     DateTime  @default(now())
+  programs      Program[]
+}
+
+model Program {
+  id            String     @id @default(cuid())
+  initiativeId  String
+  initiative    Initiative @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  status        String?
+  accountableId String?
+  accountable   Person?    @relation("ProgramAccountable", fields: [accountableId], references: [id])
+  createdAt     DateTime   @default(now())
+  projects      Project[]
+}
+
+model Project {
+  id            String   @id @default(cuid())
+  programId     String
+  program       Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  status        String?
+  accountableId String?
+  accountable   Person?  @relation("ProjectAccountable", fields: [accountableId], references: [id])
+  createdAt     DateTime @default(now())
+  tasks         Task[]
+}
+
+model Task {
+  id            String    @id @default(cuid())
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title         String
+  status        String    @default("Not Started")
+  priority      String    @default("Medium")
+  responsibleId String?
+  responsible   Person?   @relation("TaskResponsible", fields: [responsibleId], references: [id])
+  description   String?
+  startDate     DateTime?
+  dueDate       DateTime?
+  createdAt     DateTime  @default(now())
+}
