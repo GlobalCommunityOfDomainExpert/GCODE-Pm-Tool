@@ -7,6 +7,7 @@ import {
   LEVEL_LABEL,
   TASK_PRIORITIES,
   TASK_STATUSES,
+  type HierarchyCardItem,
   type HierarchyLevel,
   type Person,
   type TaskItem,
@@ -28,6 +29,7 @@ export function CreateItemModal({
   parentId,
   initialStatus,
   editTask,
+  editItem,
   onClose,
   onSaved,
 }: {
@@ -35,15 +37,18 @@ export function CreateItemModal({
   parentId?: string | null;
   initialStatus?: string;
   editTask?: TaskItem;
+  editItem?: HierarchyCardItem;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const isEdit = !!editTask;
-  const [name, setName] = useState(editTask?.title || "");
-  const [description, setDescription] = useState(editTask?.description || "");
-  const [accountable, setAccountable] = useState<Person | null>(null);
+  const isEdit = !!editTask || !!editItem;
+  const [name, setName] = useState(editTask?.title || editItem?.name || "");
+  const [description, setDescription] = useState(editTask?.description || editItem?.description || "");
+  const [accountable, setAccountable] = useState<Person | null>(editItem?.accountable || null);
   const [responsible, setResponsible] = useState<Person | null>(editTask?.responsible || null);
-  const [status, setStatus] = useState(editTask?.status || initialStatus || (level === "task" ? TASK_STATUSES[0] : CONTAINER_STATUSES[0]));
+  const [status, setStatus] = useState(
+    editTask?.status || editItem?.status || initialStatus || (level === "task" ? TASK_STATUSES[0] : CONTAINER_STATUSES[0])
+  );
   const [priority, setPriority] = useState(editTask?.priority || TASK_PRIORITIES[1]);
   const [startDate, setStartDate] = useState(editTask?.startDate || "");
   const [dueDate, setDueDate] = useState(editTask?.dueDate || "");
@@ -55,7 +60,7 @@ export function CreateItemModal({
   async function handleSave() {
     setSaving(true);
     try {
-      if (isEdit && editTask) {
+      if (editTask) {
         await fetch(`/api/tasks/${editTask.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -68,6 +73,19 @@ export function CreateItemModal({
             startDate: startDate || null,
             dueDate: dueDate || null,
           }),
+        });
+      } else if (editItem) {
+        const body: Record<string, unknown> = {
+          name,
+          description: description || null,
+          accountableId: accountable?.id || null,
+        };
+        if (level === "project") body.status = status;
+
+        await fetch(`${ENDPOINT[level]}/${editItem.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
         });
       } else {
         const body: Record<string, unknown> = {};

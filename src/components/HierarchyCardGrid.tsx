@@ -8,6 +8,7 @@ import { LEVEL_LABEL } from "@/lib/types";
 import { LEVEL_ENDPOINT } from "@/lib/endpoints";
 import { Avatar, StatusBadge } from "./Badges";
 import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
+import { CreateItemModal } from "./CreateItemModal";
 
 const LEVEL_ICON: Record<HierarchyLevel, { bg: string; fg: string; path: string }> = {
   workspace: { bg: "bg-indigo-100", fg: "text-indigo-700", path: "M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M15 9h.01M15 13h.01" },
@@ -31,6 +32,7 @@ export function HierarchyCardGrid({
   const router = useRouter();
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<HierarchyCardItem | null>(null);
+  const [editTarget, setEditTarget] = useState<HierarchyCardItem | null>(null);
 
   if (items.length === 0) {
     return (
@@ -78,6 +80,19 @@ export function HierarchyCardGrid({
               className="absolute right-3 top-11 z-20 w-36 overflow-hidden rounded-md border border-border bg-white py-1 shadow-xl"
               onClick={(e) => e.stopPropagation()}
             >
+              <button
+                onClick={() => {
+                  setMenuOpenId(null);
+                  setEditTarget(item);
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-text-primary hover:bg-slate-100"
+              >
+                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+                Edit
+              </button>
               <button
                 onClick={() => {
                   setMenuOpenId(null);
@@ -140,6 +155,15 @@ export function HierarchyCardGrid({
           itemName={deleteTarget.name}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={handleDelete}
+        />
+      )}
+
+      {editTarget && (
+        <CreateItemModal
+          level={level}
+          editItem={editTarget}
+          onClose={() => setEditTarget(null)}
+          onSaved={() => router.refresh()}
         />
       )}
     </div>
