@@ -90,7 +90,11 @@ function TreeRow({
           </div>
         </td>
         <td className="px-4 py-3">
-          <StatusBadge status={node.status} />
+          {node.level === "project" || node.level === "task" ? (
+            <StatusBadge status={node.status} />
+          ) : (
+            <span className="text-text-secondary">-</span>
+          )}
         </td>
         <td className="px-4 py-3">
           {node.priority ? <PriorityBadge priority={node.priority} /> : <span className="text-text-secondary">-</span>}

@@ -20,3 +20,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   });
   return NextResponse.json(task);
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  await prisma.task.delete({ where: { id: params.id } });
+  return new NextResponse(null, { status: 204 });
+}

@@ -11,16 +11,9 @@ import {
   type Person,
   type TaskItem,
 } from "@/lib/types";
+import { LEVEL_ENDPOINT as ENDPOINT } from "@/lib/endpoints";
 
 const CONTAINER_LEVELS: HierarchyLevel[] = ["workspace", "initiative", "program", "project"];
-
-const ENDPOINT: Record<HierarchyLevel, string> = {
-  workspace: "/api/workspaces",
-  initiative: "/api/initiatives",
-  program: "/api/programs",
-  project: "/api/projects",
-  task: "/api/tasks",
-};
 
 const PARENT_FIELD: Record<HierarchyLevel, string | null> = {
   workspace: null,
