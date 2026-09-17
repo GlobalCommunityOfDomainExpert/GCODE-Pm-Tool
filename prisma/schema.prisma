@@ -85,3 +85,136 @@ model Task {
   dueDate       DateTime?
   createdAt     DateTime  @default(now())
 }
+
+// ============================================================================
+// v0.2 — Onboarding, Auth & RBAC (docs/specifications/Onboarding and Team
+// Management v0.2 Spec.pdf). Additive only: nothing above this line changes.
+// `User` is a separate real-account directory from `Person` (the v0.1
+// accountable/responsible picker) — merging them is a future migration, not
+// this one, so v0.1's accountable/responsible relations are untouched.
+// ============================================================================
+
+// v0.2 supports exactly one organization per deployment (no org-switching, no multi-tenant routing).
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  users       User[]
+  inviteCodes InviteCode[]
+  customRoles CustomRole[]
+}
+
+model User {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  email          String
+  passwordHash   String?
+  roles          String[] // built-in role name(s) and/or custom_role name(s)
+  scope          String? // "{kind}:{id}" over the workspace hierarchy, or null = whole org
+  status         String       @default("invited") // active | invited | suspended
+  source         String // org-founder | admin-invite | invite-code
+
+  // Magic-link direct invite — never a typed code. Hashed + time-limited + single-use.
+  inviteTokenHash      String?
+  inviteTokenExpiresAt DateTime?
+
+  // Only ever set for a temp/guest join via InviteCode - never for a direct invite.
+  inviteCodeId String?
+  inviteCode   InviteCode? @relation(fields: [inviteCodeId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  sessions       Session[]
+  invite         Invite?
+  passwordResets PasswordResetRequest[]
+
+  @@unique([organizationId, email])
+}
+
+// The client holds only this row's `id` as an opaque session token (httpOnly
+// cookie). Role/scope are re-read from `User` on every request - never
+// embedded in the token - so a role change or revocation takes effect on the
+// very next request, and there is nothing client-side to tamper with.
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  expiresAt DateTime
+  revokedAt DateTime?
+}
+
+// Tracks the direct-invite lifecycle separately from the User row itself.
+model Invite {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  email     String
+  roles     String[]
+  scope     String?
+  status    String   @default("pending") // pending | accepted
+  createdAt DateTime @default(now())
+}
+
+// Shared/multi-use codes for temp/guest access ONLY - never used to onboard a
+// permanent employee (that's always a direct-invite magic link).
+model InviteCode {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String       @unique
+  roles          String[]
+  scope          String?
+  note           String?
+  maxUses        Int?
+  usesCount      Int          @default(0)
+  revoked        Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  users       User[]
+  redemptions InviteCodeRedemption[]
+}
+
+model InviteCodeRedemption {
+  id           String     @id @default(cuid())
+  inviteCodeId String
+  inviteCode   InviteCode @relation(fields: [inviteCodeId], references: [id], onDelete: Cascade)
+  userId       String
+  redeemedAt   DateTime   @default(now())
+}
+
+// Enforced identically to built-in roles - the permission check reads this
+// table the same way it reads RoleCapability, not a separate preview path.
+model CustomRole {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  capabilities   String[]
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizationId, name])
+}
+
+// The built-in 5-tier matrix as data, seeded once (see prisma/seed-rbac.ts).
+// requireCapability() has one lookup path for both built-in and custom roles:
+// this table for a built-in role name, CustomRole.capabilities for a custom one.
+model RoleCapability {
+  roleName   String
+  capability String
+
+  @@id([roleName, capability])
+}
+
+// Exists so a real build can rate-limit/audit resets; the UI response is
+// identical whether or not a matching account was found.
+model PasswordResetRequest {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  requestedAt DateTime @default(now())
+}
