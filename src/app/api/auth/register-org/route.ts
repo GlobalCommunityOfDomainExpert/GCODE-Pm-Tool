@@ -6,8 +6,17 @@ import { createSession } from "@/lib/auth/session";
 // Multiple organizations are supported and fully isolated from each other -
 // every Workspace/Person a new org creates is its own, and it never sees
 // another org's data (see the organizationId filters throughout the rest of
-// the API). The one exception is a one-time orphan claim below, for rows
-// created before multi-tenancy existed at all.
+// the API). This route does NOT auto-adopt orphaned (organizationId: null)
+// Workspace/Person rows, deliberately: an orphan could be legitimate
+// pre-multi-tenancy legacy data, or it could be debris left behind by a
+// deleted organization (Workspace/Person use onDelete: SetNull, not Cascade,
+// specifically so deleting an org can never destroy real project data) -
+// and there is no way to tell those two cases apart automatically. Handing
+// either one to whichever unrelated org happens to register next would be
+// exactly the cross-tenant leak this migration exists to prevent. The one
+// legitimate legacy-data adoption (the real pre-existing GCODE workspace)
+// was a one-time manual operation, not standing behavior - see the v0.3
+// migration notes / commit history, not this route.
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const orgName = (body?.orgName || "").trim();
@@ -34,14 +43,6 @@ export async function POST(req: NextRequest) {
         source: "org-founder",
       },
     });
-
-    // One-time adoption of pre-multi-tenancy legacy rows (organizationId
-    // still null). Only ever matches anything the very first time an org
-    // registers after this migration ships - every registration after that
-    // finds zero orphans left and this is a no-op.
-    await tx.workspace.updateMany({ where: { organizationId: null }, data: { organizationId: organization.id } });
-    await tx.person.updateMany({ where: { organizationId: null }, data: { organizationId: organization.id } });
-
     return { organization, user };
   });
 
