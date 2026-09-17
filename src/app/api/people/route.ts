@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withSession } from "@/lib/auth/requireCapability";
 
-export async function GET(req: NextRequest) {
+export const GET = withSession(async (req) => {
   const q = req.nextUrl.searchParams.get("q") || "";
   const people = await prisma.person.findMany({
     where: q ? { name: { contains: q, mode: "insensitive" } } : undefined,
@@ -9,14 +10,15 @@ export async function GET(req: NextRequest) {
     take: 20,
   });
   return NextResponse.json(people);
-}
+});
 
 // Create-on-the-fly for the Accountable/Responsible combobox (FR-8) - no separate
 // people-management screen, so this is the only way new people enter the directory.
-export async function POST(req: NextRequest) {
+// Session-gated only (any authenticated user), same low-stakes convenience v0.1 had.
+export const POST = withSession(async (req) => {
   const body = await req.json();
   const name = (body.name || "").trim();
   if (!name) return NextResponse.json({ error: "name is required" }, { status: 400 });
   const person = await prisma.person.create({ data: { name } });
   return NextResponse.json(person, { status: 201 });
-}
+});

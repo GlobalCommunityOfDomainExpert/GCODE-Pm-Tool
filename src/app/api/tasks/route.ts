@@ -1,7 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withCapability, withSession, ApiError } from "@/lib/auth/requireCapability";
+import { isNodeWithinScopeSubtree } from "@/lib/auth/scope";
 
-export async function GET(req: NextRequest) {
+export const GET = withSession(async (req) => {
   const projectId = req.nextUrl.searchParams.get("projectId");
   if (!projectId) return NextResponse.json({ error: "projectId is required" }, { status: 400 });
   const tasks = await prisma.task.findMany({
@@ -10,11 +12,15 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: "asc" },
   });
   return NextResponse.json(tasks);
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withCapability("Create/Edit Tasks", async (req, _ctx, user) => {
   const body = await req.json();
   if (!body.projectId) return NextResponse.json({ error: "projectId is required" }, { status: 400 });
+  if (!(await isNodeWithinScopeSubtree(user.scope, "project", body.projectId))) {
+    throw new ApiError(403, "That project is outside your scope.");
+  }
+
   const task = await prisma.task.create({
     data: {
       projectId: body.projectId,
@@ -29,4 +35,4 @@ export async function POST(req: NextRequest) {
     include: { responsible: true },
   });
   return NextResponse.json(task, { status: 201 });
-}
+});

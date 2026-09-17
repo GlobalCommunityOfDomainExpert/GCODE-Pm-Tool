@@ -1,7 +1,9 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { withCapability, withSession, ApiError } from "@/lib/auth/requireCapability";
+import { isNodeWithinScopeSubtree } from "@/lib/auth/scope";
 
-export async function GET(req: NextRequest) {
+export const GET = withSession(async (req) => {
   const initiativeId = req.nextUrl.searchParams.get("initiativeId");
   if (!initiativeId) return NextResponse.json({ error: "initiativeId is required" }, { status: 400 });
   const programs = await prisma.program.findMany({
@@ -10,19 +12,18 @@ export async function GET(req: NextRequest) {
     orderBy: { createdAt: "asc" },
   });
   return NextResponse.json(programs);
-}
+});
 
-export async function POST(req: NextRequest) {
+export const POST = withCapability("Create/Edit Projects", async (req, _ctx, user) => {
   const body = await req.json();
   if (!body.initiativeId) return NextResponse.json({ error: "initiativeId is required" }, { status: 400 });
+  if (!(await isNodeWithinScopeSubtree(user.scope, "initiative", body.initiativeId))) {
+    throw new ApiError(403, "That initiative is outside your scope.");
+  }
+
   const program = await prisma.program.create({
-    data: {
-      initiativeId: body.initiativeId,
-      name: body.name || "Untitled Program",
-      description: body.description || null,
-      accountableId: body.accountableId || null,
-    },
+    data: { initiativeId: body.initiativeId, name: body.name || "Untitled Program", description: body.description || null, accountableId: body.accountableId || null },
     include: { accountable: true },
   });
   return NextResponse.json(program, { status: 201 });
-}
+});
