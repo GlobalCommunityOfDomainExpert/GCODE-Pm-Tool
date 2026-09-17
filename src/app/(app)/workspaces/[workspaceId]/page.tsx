@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getWorkspaceTree, toCardItem, toTreeNode } from "@/lib/tree";
+import { getWorkspaceTree, scopeFilterWorkspace, toCardItem, toTreeNode } from "@/lib/tree";
 import { getSessionUser } from "@/lib/auth/session";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PageHeader } from "@/components/PageHeader";
@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 
 export default async function InitiativesPage({ params }: { params: { workspaceId: string } }) {
   const user = (await getSessionUser())!;
-  const workspace = await getWorkspaceTree(params.workspaceId, user.organizationId);
+  const fetched = await getWorkspaceTree(params.workspaceId, user.organizationId);
+  const workspace = await scopeFilterWorkspace(fetched, user.scope);
   if (!workspace) notFound();
 
   return (

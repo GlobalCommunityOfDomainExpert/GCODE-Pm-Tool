@@ -5,6 +5,7 @@ import { findNodeLabelForScope } from "@/lib/auth/scopeLabel";
 import { prisma } from "@/lib/prisma";
 import { Sidebar } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
+import { ActionToastHost } from "@/components/ActionToast";
 
 // The actual auth guard for the whole authenticated app. This is a server
 // component check against the DB-backed session (src/lib/auth/session.ts),
@@ -30,6 +31,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <div className="mx-auto w-full max-w-content">{children}</div>
         </main>
       </div>
+      <ActionToastHost />
     </div>
   );
 }

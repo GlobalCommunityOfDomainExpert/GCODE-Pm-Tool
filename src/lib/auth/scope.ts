@@ -83,6 +83,22 @@ export async function scopeWorkspaceId(scope: string | null): Promise<string | n
   return chain ? chain[0] : null;
 }
 
+// Full root-first ancestor chain of the scope root itself, e.g. scope
+// "project:X" -> [workspaceId, initiativeId, programId, "X"]. `null` means
+// "whole org, no filtering" (scope: null - Admin/unscoped roles). A non-null
+// but *empty* array means the scope string parsed but points at a deleted/
+// dangling node - callers must treat that as "nothing visible", not "no
+// filtering", so a stale scope fails closed instead of silently granting
+// full-org access. Used by tree.ts to prune the workspace tree down to
+// "ancestors of the scope root (single path, for breadcrumb context) plus
+// the scope root's full subtree" - never the scope root's siblings.
+export async function getScopeChain(scope: string | null): Promise<string[] | null> {
+  const parsed = parseScope(scope);
+  if (!parsed) return null;
+  const chain = await ancestorChain(parsed.kind, parsed.id);
+  return chain ?? [];
+}
+
 // Org-tenancy check (harder boundary than RBAC scope - applies regardless of
 // role, even Admin). Unlike ancestorChain/ScopeKind above, this also covers
 // "task" - a task's org is its project's workspace's org.

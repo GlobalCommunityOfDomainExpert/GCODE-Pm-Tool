@@ -1,4 +1,4 @@
-import { getAllWorkspaces, toCardItem, toTreeNode } from "@/lib/tree";
+import { getAllWorkspaces, scopeFilterWorkspaces, toCardItem, toTreeNode } from "@/lib/tree";
 import { getSessionUser } from "@/lib/auth/session";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PageHeader } from "@/components/PageHeader";
@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 
 export default async function WorkspacesPage() {
   const user = (await getSessionUser())!; // (app)/layout.tsx already guarantees a session here
-  const workspaces = await getAllWorkspaces(user.organizationId);
+  const allWorkspaces = await getAllWorkspaces(user.organizationId);
+  const workspaces = await scopeFilterWorkspaces(allWorkspaces, user.scope);
 
   return (
     <div>

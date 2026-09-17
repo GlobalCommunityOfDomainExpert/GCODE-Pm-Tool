@@ -16,6 +16,7 @@ import { CreateItemModal } from "./CreateItemModal";
 import { TaskDetailPanel } from "./TaskDetailPanel";
 import { ViewToggle, type ViewMode } from "./ViewToggle";
 import { TaskListView } from "./TaskListView";
+import { reportIfActionFailed } from "./ActionToast";
 
 const COLUMN_COLOR: Record<string, string> = {
   "Not Started": "#64748b",
@@ -47,7 +48,7 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
     });
-    if (!res.ok) {
+    if (await reportIfActionFailed(res, "Couldn't move this task.")) {
       setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: task.status } : t)));
     }
   }

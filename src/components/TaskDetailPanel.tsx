@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { TASK_STATUSES, type TaskItem } from "@/lib/types";
 import { PriorityBadge, Avatar } from "./Badges";
+import { reportIfActionFailed } from "./ActionToast";
 
 const STATUS_COLOR: Record<string, string> = {
   "Not Started": "bg-slate-100 text-slate-600",
@@ -54,13 +55,18 @@ export function TaskDetailPanel({
   }, [menuOpen]);
 
   async function handleStatusChange(next: string) {
+    const previous = status;
     setStatus(next);
     onUpdated({ status: next });
-    await fetch(`/api/tasks/${task.id}`, {
+    const res = await fetch(`/api/tasks/${task.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: next }),
     });
+    if (await reportIfActionFailed(res, "Couldn't change this task's status.")) {
+      setStatus(previous);
+      onUpdated({ status: previous });
+    }
   }
 
   const descriptionDirty = description !== (task.description || "");
@@ -68,11 +74,12 @@ export function TaskDetailPanel({
   async function handleSaveDescription() {
     setSavingDescription(true);
     try {
-      await fetch(`/api/tasks/${task.id}`, {
+      const res = await fetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ description }),
       });
+      if (await reportIfActionFailed(res, "Couldn't save this description.")) return;
       onUpdated({ description });
     } finally {
       setSavingDescription(false);

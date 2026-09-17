@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getWorkspaceTree, toTaskItem } from "@/lib/tree";
+import { getWorkspaceTree, scopeFilterWorkspace, toTaskItem } from "@/lib/tree";
 import { getSessionUser } from "@/lib/auth/session";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PageHeader } from "@/components/PageHeader";
@@ -13,7 +13,8 @@ export default async function TaskBoardPage({
   params: { workspaceId: string; initiativeId: string; programId: string; projectId: string };
 }) {
   const user = (await getSessionUser())!;
-  const workspace = await getWorkspaceTree(params.workspaceId, user.organizationId);
+  const fetched = await getWorkspaceTree(params.workspaceId, user.organizationId);
+  const workspace = await scopeFilterWorkspace(fetched, user.scope);
   const initiative = workspace?.initiatives.find((i) => i.id === params.initiativeId);
   const program = initiative?.programs.find((p) => p.id === params.programId);
   const project = program?.projects.find((p) => p.id === params.projectId);
