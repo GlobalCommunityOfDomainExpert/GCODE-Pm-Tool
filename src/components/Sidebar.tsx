@@ -1,8 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const NAV_ITEMS = [{ href: "/workspaces", label: "Workspaces", icon: "M4 6h16M4 12h16M4 18h7" }];
 
 export function Sidebar({ canManageTeam }: { canManageTeam: boolean }) {
+  const pathname = usePathname();
+
   return (
     <aside className="flex h-full w-sidebar shrink-0 flex-col border-r border-border bg-surface">
       <div className="flex h-header items-center gap-2 border-b border-border px-6">
@@ -13,18 +18,23 @@ export function Sidebar({ canManageTeam }: { canManageTeam: boolean }) {
       </div>
       <nav className="flex-1 overflow-y-auto py-3">
         <div className="mb-6 px-2">
-          {NAV_ITEMS.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="mx-0 flex items-center gap-3 rounded-md bg-slate-100 px-4 py-2.5 font-medium text-primary"
-            >
-              <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
-              </svg>
-              <span>{item.label}</span>
-            </Link>
-          ))}
+          {NAV_ITEMS.map((item) => {
+            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`mx-0 flex items-center gap-3 rounded-md px-4 py-2.5 font-medium ${
+                  active ? "bg-slate-100 text-primary" : "text-text-secondary hover:bg-slate-100"
+                }`}
+              >
+                <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d={item.icon} />
+                </svg>
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
         </div>
 
         {/* Only rendered when the caller's role actually holds Manage Team Members -
@@ -35,7 +45,9 @@ export function Sidebar({ canManageTeam }: { canManageTeam: boolean }) {
             <div className="px-4 pb-1 text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Admin</div>
             <Link
               href="/team"
-              className="mx-0 flex items-center gap-3 rounded-md px-4 py-2.5 font-medium text-text-secondary hover:bg-slate-100"
+              className={`mx-0 flex items-center gap-3 rounded-md px-4 py-2.5 font-medium ${
+                pathname === "/team" || pathname.startsWith("/team/") ? "bg-slate-100 text-primary" : "text-text-secondary hover:bg-slate-100"
+              }`}
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path
