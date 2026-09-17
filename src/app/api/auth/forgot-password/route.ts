@@ -35,7 +35,9 @@ export async function POST(req: NextRequest) {
       });
       // Best-effort - a mail-provider hiccup must not reveal account existence
       // by changing this endpoint's response, so failures are logged, not thrown.
-      await sendMail({ to: user.email, subject, text, html }).catch((err) => console.error("forgot-password send failed:", err));
+      if (user.email) {
+        await sendMail({ to: user.email, subject, text, html }).catch((err) => console.error("forgot-password send failed:", err));
+      }
     }
   }
 
