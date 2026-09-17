@@ -10,7 +10,8 @@
     "lint": "next lint",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "tsx prisma/seed.ts"
+    "prisma:seed": "tsx prisma/seed.ts",
+    "prisma:seed:rbac": "tsx prisma/seed-rbac.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

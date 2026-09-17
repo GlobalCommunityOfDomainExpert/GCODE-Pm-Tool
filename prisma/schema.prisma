@@ -110,7 +110,7 @@ model User {
   organizationId String
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name           String
-  email          String
+  email          String? // null for an email-less temp/guest join (FR-7) - single-session by design, since login is by email
   passwordHash   String?
   roles          String[] // built-in role name(s) and/or custom_role name(s)
   scope          String? // "{kind}:{id}" over the workspace hierarchy, or null = whole org

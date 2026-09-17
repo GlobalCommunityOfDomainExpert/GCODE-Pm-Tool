@@ -1,4 +1,14 @@
-export function Header() {
+import { UserMenu } from "./UserMenu";
+
+export function Header({ userName }: { userName: string }) {
+  const initials =
+    userName
+      .split(" ")
+      .map((p) => p[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "?";
+
   return (
     <header className="flex h-header shrink-0 items-center border-b border-border bg-surface px-6">
       <div className="flex w-full items-center justify-between">
@@ -9,9 +19,7 @@ export function Header() {
           </svg>
           <span className="text-sm">Search</span>
         </div>
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-semibold text-white">
-          G
-        </div>
+        <UserMenu name={userName} initials={initials} />
       </div>
     </header>
   );

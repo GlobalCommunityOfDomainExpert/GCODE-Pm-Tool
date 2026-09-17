@@ -9,7 +9,7 @@ export type SessionUser = {
   id: string;
   organizationId: string;
   name: string;
-  email: string;
+  email: string | null;
   roles: string[];
   scope: string | null;
   status: string;

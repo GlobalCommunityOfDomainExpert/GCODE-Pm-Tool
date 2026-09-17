@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Sidebar } from "@/components/Sidebar";
-import { Header } from "@/components/Header";
 
 export const metadata: Metadata = {
   title: "Gcode PM Tool",
-  description: "Workspaces v0.1",
+  description: "Workspaces + Onboarding & Team Management",
 };
 
+// Deliberately bare - the app chrome (Sidebar/Header, behind an auth guard)
+// lives in (app)/layout.tsx, and (auth) pages (login/register/invite/join)
+// render full-bleed with none of it. Splitting it out here is what lets both
+// coexist without either route group fighting the other for the shell.
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
@@ -19,17 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body className="font-sans">
-        <div className="flex h-screen w-screen overflow-hidden">
-          <Sidebar />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <Header />
-            <main className="flex-1 overflow-y-auto overflow-x-hidden bg-app p-6">
-              <div className="mx-auto w-full max-w-content">{children}</div>
-            </main>
-          </div>
-        </div>
-      </body>
+      <body className="font-sans">{children}</body>
     </html>
   );
 }
