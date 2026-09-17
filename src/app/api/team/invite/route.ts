@@ -3,7 +3,6 @@ import { prisma } from "@/lib/prisma";
 import { withCapability } from "@/lib/auth/requireCapability";
 import { randomToken, hashToken } from "@/lib/auth/tokens";
 import { sendMail, magicLinkEmail } from "@/lib/mailer";
-import { getTheOrganization } from "@/lib/auth/org";
 
 const TOKEN_TTL_MS = 72 * 60 * 60 * 1000;
 
@@ -43,7 +42,7 @@ export const POST = withCapability("Manage Team Members", async (req: NextReques
     return { user };
   });
 
-  const org = await getTheOrganization();
+  const org = await prisma.organization.findUnique({ where: { id: admin.organizationId } });
   const link = `${req.nextUrl.origin}/invite/${rawToken}`;
   const { subject, text, html } = magicLinkEmail({ orgName: org?.name || "your organization", recipientName: name, link, isReset: false });
 

@@ -2,15 +2,18 @@
 
 import { useState } from "react";
 import { ROLE_CHOICES } from "@/lib/auth/capabilityConstants";
-import type { InviteCode, ScopeOption } from "./types";
+import type { InviteCode, ScopeNode, ScopeOption } from "./types";
+import { ScopeSelect } from "./ScopeSelect";
 
 export function InviteCodesTab({
   codes,
   scopeOptions,
+  scopeTree,
   onChanged,
 }: {
   codes: InviteCode[];
   scopeOptions: ScopeOption[];
+  scopeTree: ScopeNode[];
   onChanged: () => void;
 }) {
   const [role, setRole] = useState<string>("Client");
@@ -92,14 +95,7 @@ export function InviteCodesTab({
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Scope</span>
-          <select value={scope} onChange={(e) => setScope(e.target.value)} className="min-w-[200px] rounded-sm border border-border px-3 py-2 text-[13px]">
-            <option value="">Whole Org</option>
-            {scopeOptions.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          <ScopeSelect tree={scopeTree} value={scope} onChange={setScope} className="min-w-[200px] rounded-sm border border-border px-3 py-2 text-[13px]" />
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Max Uses</span>

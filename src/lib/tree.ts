@@ -19,9 +19,14 @@ const DEEP_INCLUDE = {
   },
 } as const;
 
-export async function getWorkspaceTree(workspaceId: string) {
-  return prisma.workspace.findUnique({
-    where: { id: workspaceId },
+// organizationId is required (not optional) on both reads below - there is no
+// legitimate cross-org read of the workspace tree, ever, regardless of role.
+// A mismatched workspaceId (wrong org, or someone else's org entirely) returns
+// null exactly like a nonexistent id would, so callers already handle it via
+// their existing not-found path with no extra branching.
+export async function getWorkspaceTree(workspaceId: string, organizationId: string) {
+  return prisma.workspace.findFirst({
+    where: { id: workspaceId, organizationId },
     include: {
       accountable: true,
       initiatives: { include: DEEP_INCLUDE },
@@ -29,8 +34,9 @@ export async function getWorkspaceTree(workspaceId: string) {
   });
 }
 
-export async function getAllWorkspaces() {
+export async function getAllWorkspaces(organizationId: string) {
   return prisma.workspace.findMany({
+    where: { organizationId },
     include: {
       accountable: true,
       initiatives: { include: DEEP_INCLUDE },

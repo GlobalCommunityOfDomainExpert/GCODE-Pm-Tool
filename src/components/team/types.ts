@@ -30,3 +30,25 @@ export type CustomRole = {
 };
 
 export type ScopeOption = { value: string; label: string };
+
+// Grouped by workspace (top level) so the Scope picker can render one
+// <optgroup> per workspace with indented children, instead of a single flat
+// list interleaving every workspace's initiatives/programs/projects.
+export type ScopeNode = {
+  value: string;
+  label: string;
+  kind: "workspace" | "initiative" | "program" | "project";
+  children: ScopeNode[];
+};
+
+export function flattenScopeTree(tree: ScopeNode[]): ScopeOption[] {
+  const out: ScopeOption[] = [];
+  const walk = (nodes: ScopeNode[]) => {
+    for (const n of nodes) {
+      out.push({ value: n.value, label: `${n.label} (${n.kind})` });
+      walk(n.children);
+    }
+  };
+  walk(tree);
+  return out;
+}

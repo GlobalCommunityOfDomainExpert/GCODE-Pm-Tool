@@ -82,3 +82,17 @@ export async function scopeWorkspaceId(scope: string | null): Promise<string | n
   const chain = await ancestorChain(parsed.kind, parsed.id);
   return chain ? chain[0] : null;
 }
+
+// Org-tenancy check (harder boundary than RBAC scope - applies regardless of
+// role, even Admin). Unlike ancestorChain/ScopeKind above, this also covers
+// "task" - a task's org is its project's workspace's org.
+export async function workspaceIdForAnyNode(level: HierarchyLevel, id: string): Promise<string | null> {
+  if (level === "task") {
+    const task = await prisma.task.findUnique({ where: { id }, select: { projectId: true } });
+    if (!task) return null;
+    const chain = await ancestorChain("project", task.projectId);
+    return chain ? chain[0] : null;
+  }
+  const chain = await ancestorChain(level, id);
+  return chain ? chain[0] : null;
+}

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import type { ScopeOption, TeamUser } from "./types";
+import type { ScopeNode, ScopeOption, TeamUser } from "./types";
 import { EditUserModal } from "./EditUserModal";
 
 const SOURCE_LABEL: Record<TeamUser["source"], { text: string; color: string }> = {
@@ -25,6 +25,7 @@ export function DirectoryTab({
   users,
   currentUserId,
   scopeOptions,
+  scopeTree,
   search,
   onSearchChange,
   roleFilter,
@@ -35,6 +36,7 @@ export function DirectoryTab({
   users: TeamUser[];
   currentUserId: string;
   scopeOptions: ScopeOption[];
+  scopeTree: ScopeNode[];
   search: string;
   onSearchChange: (v: string) => void;
   roleFilter: string;
@@ -206,7 +208,7 @@ export function DirectoryTab({
       {editing && (
         <EditUserModal
           user={editing}
-          scopeOptions={scopeOptions}
+          scopeTree={scopeTree}
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);

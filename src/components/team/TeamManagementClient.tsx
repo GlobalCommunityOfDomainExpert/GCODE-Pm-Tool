@@ -5,7 +5,8 @@ import { DirectoryTab } from "./DirectoryTab";
 import { RoleDefinitionsTab } from "./RoleDefinitionsTab";
 import { InviteCodesTab } from "./InviteCodesTab";
 import { InviteUserModal } from "./InviteUserModal";
-import type { CustomRole, InviteCode, ScopeOption, TeamUser } from "./types";
+import type { CustomRole, InviteCode, ScopeNode, TeamUser } from "./types";
+import { flattenScopeTree } from "./types";
 
 type Tab = "users" | "roles" | "invites";
 
@@ -14,7 +15,8 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
   const [users, setUsers] = useState<TeamUser[]>([]);
   const [codes, setCodes] = useState<InviteCode[]>([]);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
-  const [scopeOptions, setScopeOptions] = useState<ScopeOption[]>([]);
+  const [scopeTree, setScopeTree] = useState<ScopeNode[]>([]);
+  const scopeOptions = flattenScopeTree(scopeTree);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
@@ -41,7 +43,7 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
   useEffect(() => {
     fetch("/api/team/scope-options")
       .then((r) => r.json())
-      .then(setScopeOptions);
+      .then(setScopeTree);
   }, []);
 
   useEffect(() => {
@@ -102,6 +104,7 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
           users={users}
           currentUserId={currentUserId}
           scopeOptions={scopeOptions}
+          scopeTree={scopeTree}
           search={search}
           onSearchChange={setSearch}
           roleFilter={roleFilter}
@@ -111,11 +114,11 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
         />
       )}
       {tab === "roles" && <RoleDefinitionsTab customRoles={customRoles} onChanged={loadCustomRoles} />}
-      {tab === "invites" && <InviteCodesTab codes={codes} scopeOptions={scopeOptions} onChanged={loadCodes} />}
+      {tab === "invites" && <InviteCodesTab codes={codes} scopeOptions={scopeOptions} scopeTree={scopeTree} onChanged={loadCodes} />}
 
       {inviteModalOpen && (
         <InviteUserModal
-          scopeOptions={scopeOptions}
+          scopeTree={scopeTree}
           onClose={() => setInviteModalOpen(false)}
           onCreated={(emailSent) => {
             setInviteModalOpen(false);

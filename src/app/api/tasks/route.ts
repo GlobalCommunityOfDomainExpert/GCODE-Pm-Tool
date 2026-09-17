@@ -2,10 +2,13 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withCapability, withSession, ApiError } from "@/lib/auth/requireCapability";
 import { isNodeWithinScopeSubtree } from "@/lib/auth/scope";
+import { assertNodeInOrg } from "@/lib/auth/org";
 
-export const GET = withSession(async (req) => {
+export const GET = withSession(async (req, _ctx, user) => {
   const projectId = req.nextUrl.searchParams.get("projectId");
   if (!projectId) return NextResponse.json({ error: "projectId is required" }, { status: 400 });
+  await assertNodeInOrg("project", projectId, user.organizationId);
+
   const tasks = await prisma.task.findMany({
     where: { projectId },
     include: { responsible: true },
@@ -17,6 +20,7 @@ export const GET = withSession(async (req) => {
 export const POST = withCapability("Create/Edit Tasks", async (req, _ctx, user) => {
   const body = await req.json();
   if (!body.projectId) return NextResponse.json({ error: "projectId is required" }, { status: 400 });
+  await assertNodeInOrg("project", body.projectId, user.organizationId);
   if (!(await isNodeWithinScopeSubtree(user.scope, "project", body.projectId))) {
     throw new ApiError(403, "That project is outside your scope.");
   }

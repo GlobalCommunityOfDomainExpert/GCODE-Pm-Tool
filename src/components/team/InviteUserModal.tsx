@@ -2,14 +2,15 @@
 
 import { useState } from "react";
 import { BUILT_IN_ROLES } from "@/lib/auth/capabilityConstants";
-import type { ScopeOption } from "./types";
+import type { ScopeNode } from "./types";
+import { ScopeSelect } from "./ScopeSelect";
 
 export function InviteUserModal({
-  scopeOptions,
+  scopeTree,
   onClose,
   onCreated,
 }: {
-  scopeOptions: ScopeOption[];
+  scopeTree: ScopeNode[];
   onClose: () => void;
   onCreated: (emailSent: boolean) => void;
 }) {
@@ -81,14 +82,7 @@ export function InviteUserModal({
           </div>
           <label className="flex flex-col gap-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Scope</span>
-            <select value={scope} onChange={(e) => setScope(e.target.value)} className="rounded-sm border border-border px-3 py-2 text-[13px]">
-              <option value="">Whole Org</option>
-              {scopeOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+            <ScopeSelect tree={scopeTree} value={scope} onChange={setScope} className="rounded-sm border border-border px-3 py-2 text-[13px]" />
           </label>
           {error && <div className="rounded-sm border border-danger/30 bg-danger/5 px-3 py-2 text-[13px] text-danger">{error}</div>}
           <div className="mt-2 flex justify-end gap-3">

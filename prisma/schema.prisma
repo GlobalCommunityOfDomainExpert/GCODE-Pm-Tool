@@ -9,10 +9,15 @@ datasource db {
 }
 
 // Accountable/Responsible directory - grows via the creatable dropdown (FR-8), no auth fields.
+// organizationId is nullable only to carry pre-multi-tenancy legacy rows (created
+// before Organization existed) - see the orphan-claim in register-org/route.ts.
+// Every row created from here on always has one.
 model Person {
-  id        String   @id @default(cuid())
-  name      String
-  createdAt DateTime @default(now())
+  id             String        @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  name           String
+  createdAt      DateTime      @default(now())
 
   accountableWorkspaces Workspace[]  @relation("WorkspaceAccountable")
   accountableInitiatives Initiative[] @relation("InitiativeAccountable")
@@ -21,15 +26,21 @@ model Person {
   responsibleTasks      Task[]       @relation("TaskResponsible")
 }
 
+// organizationId nullable for the same legacy-row reason as Person above.
+// Only Workspace carries it directly - Initiative/Program/Project/Task inherit
+// their tenant by walking up the existing FK chain (see src/lib/auth/scope.ts's
+// workspaceIdForNode()), not by duplicating the column on every level.
 model Workspace {
-  id            String       @id @default(cuid())
-  name          String
-  description   String?
-  status        String?
-  accountableId String?
-  accountable   Person?      @relation("WorkspaceAccountable", fields: [accountableId], references: [id])
-  createdAt     DateTime     @default(now())
-  initiatives   Initiative[]
+  id             String        @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  name           String
+  description    String?
+  status         String?
+  accountableId  String?
+  accountable    Person?       @relation("WorkspaceAccountable", fields: [accountableId], references: [id])
+  createdAt      DateTime      @default(now())
+  initiatives    Initiative[]
 }
 
 model Initiative {
@@ -94,7 +105,10 @@ model Task {
 // this one, so v0.1's accountable/responsible relations are untouched.
 // ============================================================================
 
-// v0.2 supports exactly one organization per deployment (no org-switching, no multi-tenant routing).
+// Multiple organizations are supported (each isolated - see workspaces/people
+// filters throughout the API); there's just no cross-org UI yet (no org
+// switcher, no invite-into-an-org-you-don't-run), so in practice a given
+// browser session only ever deals with one at a time.
 model Organization {
   id        String   @id @default(cuid())
   name      String
@@ -103,6 +117,8 @@ model Organization {
   users       User[]
   inviteCodes InviteCode[]
   customRoles CustomRole[]
+  workspaces  Workspace[]
+  people      Person[]
 }
 
 model User {
