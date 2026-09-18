@@ -13,8 +13,10 @@ import {
 import { TASK_STATUSES, type TaskItem } from "@/lib/types";
 import { PriorityBadge, Avatar } from "./Badges";
 import { CreateItemModal } from "./CreateItemModal";
+import { TaskDetailPanel } from "./TaskDetailPanel";
 import { ViewToggle, type ViewMode } from "./ViewToggle";
 import { TaskListView } from "./TaskListView";
+import { reportIfActionFailed } from "./ActionToast";
 
 const COLUMN_COLOR: Record<string, string> = {
   "Not Started": "#64748b",
@@ -27,6 +29,7 @@ const COLUMN_COLOR: Record<string, string> = {
 
 export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string; initialTasks: TaskItem[] }) {
   const [tasks, setTasks] = useState(initialTasks);
+  const [viewingTask, setViewingTask] = useState<TaskItem | null>(null);
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
   const [newTaskStatus, setNewTaskStatus] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>("cards");
@@ -45,9 +48,14 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: newStatus }),
     });
-    if (!res.ok) {
+    if (await reportIfActionFailed(res, "Couldn't move this task.")) {
       setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: task.status } : t)));
     }
+  }
+
+  function patchTask(id: string, patch: Partial<TaskItem>) {
+    setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+    setViewingTask((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
   }
 
   function refresh(updated: Partial<TaskItem> & { id?: string }) {
@@ -90,13 +98,25 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
                 status={status}
                 tasks={tasks.filter((t) => t.status === status)}
                 onAddTask={() => setNewTaskStatus(status)}
-                onTaskClick={setEditingTask}
+                onTaskClick={setViewingTask}
               />
             ))}
           </div>
         </DndContext>
       ) : (
-        <TaskListView tasks={tasks} onTaskClick={setEditingTask} />
+        <TaskListView tasks={tasks} onTaskClick={setViewingTask} />
+      )}
+
+      {viewingTask && (
+        <TaskDetailPanel
+          task={viewingTask}
+          onClose={() => setViewingTask(null)}
+          onEdit={() => {
+            setEditingTask(viewingTask);
+            setViewingTask(null);
+          }}
+          onUpdated={(patch) => patchTask(viewingTask.id, patch)}
+        />
       )}
 
       {(editingTask || newTaskStatus) && (

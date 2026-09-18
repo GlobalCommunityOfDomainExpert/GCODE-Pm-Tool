@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PeopleCombobox } from "./PeopleCombobox";
+import { reportIfActionFailed } from "./ActionToast";
 import {
   CONTAINER_STATUSES,
   LEVEL_LABEL,
@@ -60,8 +61,9 @@ export function CreateItemModal({
   async function handleSave() {
     setSaving(true);
     try {
+      let res: Response;
       if (editTask) {
-        await fetch(`/api/tasks/${editTask.id}`, {
+        res = await fetch(`/api/tasks/${editTask.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -82,7 +84,7 @@ export function CreateItemModal({
         };
         if (level === "project") body.status = status;
 
-        await fetch(`${ENDPOINT[level]}/${editItem.id}`, {
+        res = await fetch(`${ENDPOINT[level]}/${editItem.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -107,12 +109,18 @@ export function CreateItemModal({
           body.dueDate = dueDate || null;
         }
 
-        await fetch(ENDPOINT[level], {
+        res = await fetch(ENDPOINT[level], {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
       }
+
+      // A scope/permission failure closes and re-shows a modal that looks
+      // saved, which is worse than leaving it open - so on failure, keep it
+      // open (toast explains why) instead of calling onSaved()/onClose().
+      if (await reportIfActionFailed(res, `Couldn't save this ${label.toLowerCase()}.`)) return;
+
       onSaved();
       onClose();
     } finally {

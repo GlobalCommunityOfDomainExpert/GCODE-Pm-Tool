@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { getScopeChain } from "./auth/scope";
 import type { HierarchyCardItem, HierarchyLevel, Person, TaskItem, TreeNode } from "./types";
 
 // v0.1's data volume is six small tables (per spec section 6), so a single deep
@@ -19,9 +20,14 @@ const DEEP_INCLUDE = {
   },
 } as const;
 
-export async function getWorkspaceTree(workspaceId: string) {
-  return prisma.workspace.findUnique({
-    where: { id: workspaceId },
+// organizationId is required (not optional) on both reads below - there is no
+// legitimate cross-org read of the workspace tree, ever, regardless of role.
+// A mismatched workspaceId (wrong org, or someone else's org entirely) returns
+// null exactly like a nonexistent id would, so callers already handle it via
+// their existing not-found path with no extra branching.
+export async function getWorkspaceTree(workspaceId: string, organizationId: string) {
+  return prisma.workspace.findFirst({
+    where: { id: workspaceId, organizationId },
     include: {
       accountable: true,
       initiatives: { include: DEEP_INCLUDE },
@@ -29,8 +35,9 @@ export async function getWorkspaceTree(workspaceId: string) {
   });
 }
 
-export async function getAllWorkspaces() {
+export async function getAllWorkspaces(organizationId: string) {
   return prisma.workspace.findMany({
+    where: { organizationId },
     include: {
       accountable: true,
       initiatives: { include: DEEP_INCLUDE },
@@ -131,6 +138,61 @@ const CHILD_LEVEL_FOR_LEVEL: Partial<Record<HierarchyLevel, HierarchyLevel>> = {
   program: "project",
   project: "task",
 };
+
+// Prunes an array of same-level nodes down to what a scoped user may see:
+// - Above the scope root (not yet `insideSubtree`): only the single sibling
+//   that sits on the path to the scope root survives at each level - this is
+//   the "ancestors, for breadcrumb context only" half of the rule, so a
+//   Program-scoped user's Initiative page shows exactly one Initiative
+//   (theirs), not every Initiative in the workspace.
+// - At or below the scope root (`insideSubtree`): everything survives
+//   unfiltered - the scope root's full subtree is fully visible.
+// Mutates each kept node's child array in place (fresh query result per
+// request, so this is safe) and recurses one level at a time using the
+// same child-key maps toTreeNode/toCardItem already rely on.
+function pruneNodes<T extends { id: string }>(
+  nodes: T[],
+  level: HierarchyLevel,
+  chain: string[],
+  depth: number,
+  insideSubtree: boolean
+): T[] {
+  const kept = insideSubtree ? nodes : nodes.filter((n) => n.id === chain[depth]);
+
+  const childKey = CHILD_KEY_FOR_LEVEL[level];
+  const childLevel = CHILD_LEVEL_FOR_LEVEL[level];
+  if (!childKey || !childLevel) return kept;
+
+  const childInsideSubtree = insideSubtree || depth === chain.length - 1;
+  for (const n of kept) {
+    const rec = n as unknown as Record<string, unknown>;
+    const children = (rec[childKey] as T[] | undefined) || [];
+    rec[childKey] = pruneNodes(children, childLevel, chain, depth + 1, childInsideSubtree);
+  }
+  return kept;
+}
+
+// Applies scope-based read filtering to a full workspaces list (top-level
+// entry point, e.g. getAllWorkspaces()'s result). `scope: null` (Admin /
+// unscoped roles) returns the input untouched.
+export async function scopeFilterWorkspaces<T extends { id: string }>(workspaces: T[], scope: string | null): Promise<T[]> {
+  const chain = await getScopeChain(scope);
+  if (chain === null) return workspaces;
+  return pruneNodes(workspaces, "workspace", chain, 0, false);
+}
+
+// Same, for a single workspace tree (getWorkspaceTree()'s result). Returns
+// null both when the input was null (not found / wrong org) and when the
+// workspace exists but isn't visible under the caller's scope - callers
+// already treat "null here" as their existing notFound() path, so a direct
+// URL visit to something outside scope 404s exactly like a nonexistent id.
+export async function scopeFilterWorkspace<T extends { id: string }>(workspace: T | null, scope: string | null): Promise<T | null> {
+  if (!workspace) return null;
+  const chain = await getScopeChain(scope);
+  if (chain === null) return workspace;
+  const [pruned] = pruneNodes([workspace], "workspace", chain, 0, false);
+  return pruned ?? null;
+}
 
 export function toTreeNode(node: TreeSourceNode, level: HierarchyLevel): TreeNode {
   const isTask = level === "task";
