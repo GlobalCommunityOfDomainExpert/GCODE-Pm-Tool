@@ -16,8 +16,17 @@ export async function POST(req: NextRequest) {
   const email = (body?.email || "").trim().toLowerCase();
 
   if (email) {
-    const user = await prisma.user.findFirst({ where: { email, status: "active" } });
-    if (user) {
+    // Email is unique per-org, not globally (@@unique([organizationId, email])
+    // on User) - the same person can hold an active account in more than one
+    // org under the same email. findFirst here would silently reset only one
+    // of them (whichever row Postgres happened to return), leaving the other
+    // org's account untouched with no way for the caller to know or choose.
+    // There's no password to disambiguate by (this route is unauthenticated
+    // by design), so instead: send every matching org a reset link of its
+    // own - each email's subject/body already names its org, so the
+    // recipient can tell them apart in their inbox.
+    const users = await prisma.user.findMany({ where: { email, status: "active" } });
+    for (const user of users) {
       const rawToken = randomToken();
       await prisma.user.update({
         where: { id: user.id },
