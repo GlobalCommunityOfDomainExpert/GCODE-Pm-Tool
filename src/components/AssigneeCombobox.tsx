@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { Assignee } from "@/lib/types";
 import type { ScopeKind } from "@/lib/auth/scope";
 
@@ -10,6 +11,12 @@ import type { ScopeKind } from "@/lib/auth/scope";
 // editing, its parent's (level, id) when creating - see CreateItemModal).
 // Unlike the old PeopleCombobox this never lets you type a brand-new name
 // into existence - only an actual account with the right scope is selectable.
+//
+// The results panel is portaled to document.body and positioned `fixed` off
+// the trigger button's own rect - not `absolute` inside a `relative`
+// wrapper - because this combobox always lives inside Modal's scrollable
+// body: an absolute panel there gets clipped by (or adds to the scroll
+// height of) that overflow-y-auto container instead of floating over it.
 export function AssigneeCombobox({
   value,
   onChange,
@@ -27,7 +34,9 @@ export function AssigneeCombobox({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Assignee[]>([]);
   const [loading, setLoading] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const [rect, setRect] = useState<{ top: number; left: number; width: number } | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -51,67 +60,86 @@ export function AssigneeCombobox({
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", onClickOutside);
     return () => document.removeEventListener("mousedown", onClickOutside);
   }, []);
 
+  function toggleOpen() {
+    if (!open && triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      setRect({ top: r.bottom + 4, left: r.left, width: r.width });
+    }
+    setOpen((o) => !o);
+  }
+
   return (
-    <div ref={rootRef} className="relative">
+    <>
       <button
+        ref={triggerRef}
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggleOpen}
         className="w-full rounded-md border border-border bg-white px-3 py-2.5 text-left text-[13px] outline-none"
       >
         {value ? value.name : <span className="text-text-secondary">{placeholder}</span>}
       </button>
-      {open && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border border-border bg-white shadow-xl">
-          <input
-            autoFocus
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by name or email..."
-            className="w-full border-b border-border px-3 py-2 text-[13px] outline-none"
-          />
-          <div className="max-h-48 overflow-y-auto py-1">
-            {value && (
-              <button
-                type="button"
-                onClick={() => {
-                  onChange(null);
-                  setOpen(false);
-                  setQuery("");
-                }}
-                className="block w-full px-3 py-2 text-left text-[13px] text-text-secondary hover:bg-app"
-              >
-                Unassigned
-              </button>
-            )}
-            {results.map((a) => (
-              <button
-                type="button"
-                key={a.id}
-                onClick={() => {
-                  onChange(a);
-                  setOpen(false);
-                  setQuery("");
-                }}
-                className="block w-full px-3 py-2 text-left text-[13px] hover:bg-app"
-              >
-                <div className="text-text-primary">{a.name}</div>
-                {a.email && <div className="text-[11px] text-text-secondary">{a.email}</div>}
-              </button>
-            ))}
-            {!loading && results.length === 0 && (
-              <div className="px-3 py-2 text-[13px] text-text-secondary">
-                {query.trim() ? "No matching teammates in scope." : "No teammates in scope for this level."}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
+      {open &&
+        rect &&
+        createPortal(
+          <div
+            ref={panelRef}
+            style={{ position: "fixed", top: rect.top, left: rect.left, width: rect.width }}
+            className="z-[1100] rounded-md border border-border bg-white shadow-xl"
+          >
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search by name or email..."
+              className="w-full border-b border-border px-3 py-2 text-[13px] outline-none"
+            />
+            <div className="max-h-48 overflow-y-auto py-1">
+              {value && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onChange(null);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                  className="block w-full px-3 py-2 text-left text-[13px] text-text-secondary hover:bg-app"
+                >
+                  Unassigned
+                </button>
+              )}
+              {results.map((a) => (
+                <button
+                  type="button"
+                  key={a.id}
+                  onClick={() => {
+                    onChange(a);
+                    setOpen(false);
+                    setQuery("");
+                  }}
+                  className="block w-full px-3 py-2 text-left text-[13px] hover:bg-app"
+                >
+                  <div className="text-text-primary">{a.name}</div>
+                  {a.email && <div className="text-[11px] text-text-secondary">{a.email}</div>}
+                </button>
+              ))}
+              {!loading && results.length === 0 && (
+                <div className="px-3 py-2 text-[13px] text-text-secondary">
+                  {query.trim() ? "No matching teammates in scope." : "No teammates in scope for this level."}
+                </div>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
   );
 }
