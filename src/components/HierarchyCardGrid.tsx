@@ -2,13 +2,15 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import type { HierarchyCardItem, HierarchyLevel } from "@/lib/types";
 import { LEVEL_LABEL } from "@/lib/types";
 import { LEVEL_ENDPOINT } from "@/lib/endpoints";
 import { Avatar, StatusBadge } from "./Badges";
 import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import { CreateItemModal } from "./CreateItemModal";
+import { reportIfActionFailed } from "./ActionToast";
+import { Spinner } from "./Spinner";
 
 const LEVEL_ICON: Record<HierarchyLevel, { bg: string; fg: string; path: string }> = {
   workspace: { bg: "bg-indigo-100", fg: "text-indigo-700", path: "M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M15 9h.01M15 13h.01" },
@@ -33,6 +35,7 @@ export function HierarchyCardGrid({
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<HierarchyCardItem | null>(null);
   const [editTarget, setEditTarget] = useState<HierarchyCardItem | null>(null);
+  const [isRefreshing, startRefresh] = useTransition();
 
   useEffect(() => {
     if (!menuOpenId) return;
@@ -56,13 +59,14 @@ export function HierarchyCardGrid({
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    await fetch(`${LEVEL_ENDPOINT[level]}/${deleteTarget.id}`, { method: "DELETE" });
+    const res = await fetch(`${LEVEL_ENDPOINT[level]}/${deleteTarget.id}`, { method: "DELETE" });
+    if (await reportIfActionFailed(res, `Couldn't delete this ${LEVEL_LABEL[level].toLowerCase()}.`)) return;
     setDeleteTarget(null);
-    router.refresh();
+    startRefresh(() => router.refresh());
   }
 
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+    <div className={`grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 ${isRefreshing ? "pointer-events-none opacity-60 transition-opacity" : "transition-opacity"}`}>
       {items.map((item) => (
         <div
           key={item.id}
@@ -171,7 +175,7 @@ export function HierarchyCardGrid({
           level={level}
           editItem={editTarget}
           onClose={() => setEditTarget(null)}
-          onSaved={() => router.refresh()}
+          onSaved={() => startRefresh(() => router.refresh())}
         />
       )}
     </div>

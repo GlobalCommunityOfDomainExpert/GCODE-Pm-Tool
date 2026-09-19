@@ -13,9 +13,12 @@ export const CONTAINER_STATUSES = ["On Track", "At Risk", "In Progress", "To Do"
 export const TASK_STATUSES = ["Not Started", "In Progress", "Review Pending", "Paused", "Completed", "Yet To Update"] as const;
 export const TASK_PRIORITIES = ["High", "Medium", "Low"] as const;
 
-export interface Person {
+// An org teammate (User) eligible to be set as accountable/responsible -
+// never the full team-management shape (no role/scope/status here).
+export interface Assignee {
   id: string;
   name: string;
+  email: string | null;
 }
 
 export interface HierarchyCardItem {
@@ -23,7 +26,7 @@ export interface HierarchyCardItem {
   name: string;
   description: string | null;
   status: string | null;
-  accountable: Person | null;
+  accountable: Assignee | null;
   childCount: number;
   progress: number;
   done: number;
@@ -35,7 +38,7 @@ export interface TaskItem {
   title: string;
   status: string;
   priority: string;
-  responsible: Person | null;
+  responsible: Assignee | null;
   description: string | null;
   startDate: string | null;
   dueDate: string | null;
@@ -54,7 +57,7 @@ export interface TreeNode {
   level: HierarchyLevel;
   name: string;
   status: string | null;
-  accountable: Person | null;
+  accountable: Assignee | null;
   priority: string | null; // tasks only
   dueDate: string | null; // tasks only
   progress: number;

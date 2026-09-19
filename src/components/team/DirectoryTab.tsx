@@ -4,6 +4,8 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { ScopeNode, ScopeOption, TeamUser } from "./types";
 import { EditUserModal } from "./EditUserModal";
+import { reportIfActionFailed, showActionNotice } from "../ActionToast";
+import { Spinner } from "../Spinner";
 
 const SOURCE_LABEL: Record<TeamUser["source"], { text: string; color: string }> = {
   "org-founder": { text: "Org Founder", color: "text-purple-600" },
@@ -31,6 +33,7 @@ export function DirectoryTab({
   roleFilter,
   onRoleFilterChange,
   allRoles,
+  loading,
   onChanged,
 }: {
   users: TeamUser[];
@@ -42,6 +45,7 @@ export function DirectoryTab({
   roleFilter: string;
   onRoleFilterChange: (v: string) => void;
   allRoles: string[];
+  loading: boolean;
   onChanged: () => void;
 }) {
   const [menuFor, setMenuFor] = useState<string | null>(null);
@@ -59,25 +63,34 @@ export function DirectoryTab({
     setMenuFor(id);
   }
 
+  const ACTION_NOTICE: Record<string, string> = {
+    delete: "Teammate removed.",
+    suspend: "Teammate deactivated.",
+    activate: "Teammate reactivated.",
+    resend: "Invite link resent.",
+    reset: "Password reset link sent.",
+  };
+
   async function act(id: string, action: string) {
+    if (action === "delete" && !confirm("Remove this teammate from the team?")) return;
+    if (action === "suspend" && !confirm("Deactivate this user? They won't be able to sign in until reactivated.")) return;
+
     setBusy(id);
+    setMenuFor(null);
     try {
-      if (action === "delete") {
-        if (!confirm("Remove this teammate from the team?")) return;
-        await fetch(`/api/team/users/${id}`, { method: "DELETE" });
-      } else if (action === "suspend" && !confirm("Deactivate this user? They won't be able to sign in until reactivated.")) {
-        return;
-      } else {
-        await fetch(`/api/team/users/${id}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action }),
-        });
-      }
+      const res =
+        action === "delete"
+          ? await fetch(`/api/team/users/${id}`, { method: "DELETE" })
+          : await fetch(`/api/team/users/${id}`, {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action }),
+            });
+      if (await reportIfActionFailed(res, "That didn't go through.")) return;
+      showActionNotice(ACTION_NOTICE[action] || "Done.");
       onChanged();
     } finally {
       setBusy(null);
-      setMenuFor(null);
     }
   }
 
@@ -104,6 +117,7 @@ export function DirectoryTab({
             </option>
           ))}
         </select>
+        {loading && <Spinner className="h-4 w-4 shrink-0 text-text-secondary" />}
       </div>
 
       {users.length === 0 ? (
@@ -125,7 +139,7 @@ export function DirectoryTab({
               const isMe = u.id === currentUserId;
               const src = SOURCE_LABEL[u.source];
               return (
-                <tr key={u.id} className="border-b border-border last:border-0">
+                <tr key={u.id} className={`border-b border-border last:border-0 transition-opacity ${busy === u.id ? "opacity-50" : ""}`}>
                   <td className="px-6 py-3">
                     <div className="flex items-center gap-3">
                       <div className={`flex h-8 w-8 items-center justify-center rounded-full text-[12px] font-semibold text-white ${isMe ? "bg-primary" : "bg-warning"}`}>
@@ -155,13 +169,17 @@ export function DirectoryTab({
                     <span className={STATUS_COLOR[u.status]}>● {u.status === "invited" ? "invited (pending)" : u.status}</span>
                   </td>
                   <td className="px-6 py-3 text-right">
-                    <button
-                      onClick={(e) => openMenu(e, u.id)}
-                      disabled={isMe || busy === u.id}
-                      className="rounded-sm px-2 py-1 text-text-secondary hover:bg-slate-100 disabled:opacity-30"
-                    >
-                      ⋮
-                    </button>
+                    {busy === u.id ? (
+                      <Spinner className="ml-auto h-4 w-4 text-text-secondary" />
+                    ) : (
+                      <button
+                        onClick={(e) => openMenu(e, u.id)}
+                        disabled={isMe}
+                        className="rounded-sm px-2 py-1 text-text-secondary hover:bg-slate-100 disabled:opacity-30"
+                      >
+                        ⋮
+                      </button>
+                    )}
                     {menuFor === u.id &&
                       menuRect &&
                       createPortal(

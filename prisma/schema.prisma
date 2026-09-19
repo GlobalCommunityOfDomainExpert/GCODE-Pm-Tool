@@ -8,22 +8,17 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// Accountable/Responsible directory - grows via the creatable dropdown (FR-8), no auth fields.
-// organizationId is nullable only to carry pre-multi-tenancy legacy rows (created
-// before Organization existed) - see the orphan-claim in register-org/route.ts.
-// Every row created from here on always has one.
+// Legacy accountable/responsible directory (v0.1, pre-RBAC). No longer used for
+// Workspace/Initiative/Program/Project/Task assignment - see the v0.2 note below,
+// migration 20260919_repoint_accountable_responsible_to_user. Left in place
+// (unused) rather than dropped, since dropping the table would destroy any
+// data outside the columns that migration already reconciled.
 model Person {
   id             String        @id @default(cuid())
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   name           String
   createdAt      DateTime      @default(now())
-
-  accountableWorkspaces Workspace[]  @relation("WorkspaceAccountable")
-  accountableInitiatives Initiative[] @relation("InitiativeAccountable")
-  accountablePrograms   Program[]    @relation("ProgramAccountable")
-  accountableProjects   Project[]    @relation("ProjectAccountable")
-  responsibleTasks      Task[]       @relation("TaskResponsible")
 }
 
 // organizationId nullable for the same legacy-row reason as Person above.
@@ -38,7 +33,7 @@ model Workspace {
   description    String?
   status         String?
   accountableId  String?
-  accountable    Person?       @relation("WorkspaceAccountable", fields: [accountableId], references: [id])
+  accountable    User?         @relation("WorkspaceAccountable", fields: [accountableId], references: [id], onDelete: SetNull)
   createdAt      DateTime      @default(now())
   initiatives    Initiative[]
 }
@@ -51,7 +46,7 @@ model Initiative {
   description   String?
   status        String?
   accountableId String?
-  accountable   Person?   @relation("InitiativeAccountable", fields: [accountableId], references: [id])
+  accountable   User?     @relation("InitiativeAccountable", fields: [accountableId], references: [id], onDelete: SetNull)
   createdAt     DateTime  @default(now())
   programs      Program[]
 }
@@ -64,7 +59,7 @@ model Program {
   description   String?
   status        String?
   accountableId String?
-  accountable   Person?    @relation("ProgramAccountable", fields: [accountableId], references: [id])
+  accountable   User?      @relation("ProgramAccountable", fields: [accountableId], references: [id], onDelete: SetNull)
   createdAt     DateTime   @default(now())
   projects      Project[]
 }
@@ -77,7 +72,7 @@ model Project {
   description   String?
   status        String?
   accountableId String?
-  accountable   Person?  @relation("ProjectAccountable", fields: [accountableId], references: [id])
+  accountable   User?    @relation("ProjectAccountable", fields: [accountableId], references: [id], onDelete: SetNull)
   createdAt     DateTime @default(now())
   tasks         Task[]
 }
@@ -90,7 +85,7 @@ model Task {
   status        String    @default("Not Started")
   priority      String    @default("Medium")
   responsibleId String?
-  responsible   Person?   @relation("TaskResponsible", fields: [responsibleId], references: [id])
+  responsible   User?     @relation("TaskResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
   description   String?
   startDate     DateTime?
   dueDate       DateTime?
@@ -146,6 +141,12 @@ model User {
   sessions       Session[]
   invite         Invite?
   passwordResets PasswordResetRequest[]
+
+  accountableWorkspaces  Workspace[]  @relation("WorkspaceAccountable")
+  accountableInitiatives Initiative[] @relation("InitiativeAccountable")
+  accountablePrograms    Program[]    @relation("ProgramAccountable")
+  accountableProjects    Project[]    @relation("ProjectAccountable")
+  responsibleTasks       Task[]       @relation("TaskResponsible")
 
   @@unique([organizationId, email])
 }

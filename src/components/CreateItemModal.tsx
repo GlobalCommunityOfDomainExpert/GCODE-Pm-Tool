@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { PeopleCombobox } from "./PeopleCombobox";
+import { AssigneeCombobox } from "./AssigneeCombobox";
 import { reportIfActionFailed } from "./ActionToast";
+import { Spinner } from "./Spinner";
 import {
   CONTAINER_STATUSES,
   LEVEL_LABEL,
@@ -10,10 +11,11 @@ import {
   TASK_STATUSES,
   type HierarchyCardItem,
   type HierarchyLevel,
-  type Person,
+  type Assignee,
   type TaskItem,
 } from "@/lib/types";
 import { LEVEL_ENDPOINT as ENDPOINT } from "@/lib/endpoints";
+import type { ScopeKind } from "@/lib/auth/scope";
 
 const CONTAINER_LEVELS: HierarchyLevel[] = ["workspace", "initiative", "program", "project"];
 
@@ -23,6 +25,20 @@ const PARENT_FIELD: Record<HierarchyLevel, string | null> = {
   program: "initiativeId",
   project: "programId",
   task: "projectId",
+};
+
+// The scope kind/id to filter the assignee picker against: the item's own
+// (level, id) when editing an existing item, or its parent's (level, id)
+// when creating one underneath it - see assignableUsersForNode in scope.ts,
+// which this mirrors exactly. `kind: null` (new root Workspace, no parent)
+// means "org-wide only" - handled by AssigneeCombobox/the API when nodeId is
+// also null.
+const PARENT_KIND: Record<HierarchyLevel, ScopeKind | null> = {
+  workspace: null,
+  initiative: "workspace",
+  program: "initiative",
+  project: "program",
+  task: "project",
 };
 
 export function CreateItemModal({
@@ -45,8 +61,8 @@ export function CreateItemModal({
   const isEdit = !!editTask || !!editItem;
   const [name, setName] = useState(editTask?.title || editItem?.name || "");
   const [description, setDescription] = useState(editTask?.description || editItem?.description || "");
-  const [accountable, setAccountable] = useState<Person | null>(editItem?.accountable || null);
-  const [responsible, setResponsible] = useState<Person | null>(editTask?.responsible || null);
+  const [accountable, setAccountable] = useState<Assignee | null>(editItem?.accountable || null);
+  const [responsible, setResponsible] = useState<Assignee | null>(editTask?.responsible || null);
   const [status, setStatus] = useState(
     editTask?.status || editItem?.status || initialStatus || (level === "task" ? TASK_STATUSES[0] : CONTAINER_STATUSES[0])
   );
@@ -57,6 +73,9 @@ export function CreateItemModal({
 
   const isContainer = CONTAINER_LEVELS.includes(level);
   const label = LEVEL_LABEL[level];
+
+  const assigneeKind: ScopeKind | null = level === "task" ? "project" : isEdit ? (level as ScopeKind) : PARENT_KIND[level];
+  const assigneeNodeId: string | null = level === "task" ? parentId ?? null : isEdit ? editItem?.id ?? null : parentId ?? null;
 
   async function handleSave() {
     setSaving(true);
@@ -163,7 +182,7 @@ export function CreateItemModal({
 
             {isContainer && (
               <Field label="Accountable" span2={level !== "project"}>
-                <PeopleCombobox value={accountable} onChange={setAccountable} />
+                <AssigneeCombobox value={accountable} onChange={setAccountable} kind={assigneeKind} nodeId={assigneeNodeId} />
               </Field>
             )}
 
@@ -200,7 +219,7 @@ export function CreateItemModal({
                   </select>
                 </Field>
                 <Field label="Responsible">
-                  <PeopleCombobox value={responsible} onChange={setResponsible} />
+                  <AssigneeCombobox value={responsible} onChange={setResponsible} kind={assigneeKind} nodeId={assigneeNodeId} />
                 </Field>
                 <Field label="Start Date (optional)">
                   <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="nfm-input" />
@@ -219,9 +238,10 @@ export function CreateItemModal({
             <button
               onClick={handleSave}
               disabled={saving || !name.trim()}
-              className="rounded-sm bg-primary px-5 py-2.5 text-[13px] font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+              className="flex items-center gap-2 rounded-sm bg-primary px-5 py-2.5 text-[13px] font-medium text-white hover:bg-primary-hover disabled:opacity-50"
             >
-              {isEdit ? "Save" : "Create"}
+              {saving && <Spinner />}
+              {saving ? (isEdit ? "Saving…" : "Creating…") : isEdit ? "Save" : "Create"}
             </button>
           </div>
         </div>

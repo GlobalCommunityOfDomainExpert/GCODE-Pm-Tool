@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ApiError } from "./requireCapability";
 import type { HierarchyLevel } from "@/lib/types";
 
 export type ScopeKind = Exclude<HierarchyLevel, "task">;
@@ -111,4 +112,73 @@ export async function workspaceIdForAnyNode(level: HierarchyLevel, id: string): 
   }
   const chain = await ancestorChain(level, id);
   return chain ? chain[0] : null;
+}
+
+// Assignee picker support: the org teammates who may be set as
+// accountable/responsible on a given node. `kind`/`nodeId` identify the node
+// being assigned FOR - the item's own (level, id) when editing an existing
+// item, or its parent's (level, id) when creating a new one underneath it
+// (see CreateItemModal's PARENT_KIND map). `kind: null` means "no parent to
+// scope against" (creating a brand-new root Workspace) - only org-wide
+// (unscoped) users are offered, since a scoped user's scope always points at
+// an *existing* node and can't yet relate to one that doesn't exist.
+// Mirrors isNodeWithinScopeSubtree's rule but computes the chain once and
+// checks every candidate in memory instead of one query per user.
+export async function assignableUsersForNode(
+  organizationId: string,
+  kind: ScopeKind | null,
+  nodeId: string | null
+): Promise<{ id: string; name: string; email: string | null }[]> {
+  const candidates = await prisma.user.findMany({
+    where: { organizationId, status: "active" },
+    select: { id: true, name: true, email: true, scope: true },
+    orderBy: { name: "asc" },
+  });
+
+  if (kind === null || nodeId === null) {
+    return candidates.filter((u) => !u.scope).map(({ id, name, email }) => ({ id, name, email }));
+  }
+
+  const chain = await ancestorChain(kind, nodeId);
+  if (!chain) return [];
+
+  return candidates
+    .filter((u) => {
+      const parsed = parseScope(u.scope);
+      if (!parsed) return true;
+      if (parsed.kind === kind && parsed.id === nodeId) return true;
+      return chain.includes(parsed.id);
+    })
+    .map(({ id, name, email }) => ({ id, name, email }));
+}
+
+// Server-side mirror of assignableUsersForNode, for the create/update routes:
+// throws unless `assigneeUserId` is null/undefined (no assignee - always ok)
+// or names an active User in the caller's org whose scope covers `nodeId`.
+// The picker (assignableUsersForNode) already filters the client's choices,
+// but a client can still POST an arbitrary id, so this is the real gate.
+export async function assertAssigneeAllowed(
+  organizationId: string,
+  kind: ScopeKind | null,
+  nodeId: string | null,
+  assigneeUserId: string | null | undefined
+): Promise<void> {
+  if (!assigneeUserId) return;
+
+  const candidate = await prisma.user.findUnique({
+    where: { id: assigneeUserId },
+    select: { organizationId: true, scope: true, status: true },
+  });
+  if (!candidate || candidate.organizationId !== organizationId || candidate.status !== "active") {
+    throw new ApiError(400, "That teammate isn't part of your organization.");
+  }
+
+  if (kind === null || nodeId === null) {
+    if (candidate.scope) throw new ApiError(400, "That teammate doesn't have scope to be assigned here.");
+    return;
+  }
+
+  if (!(await isNodeWithinScopeSubtree(candidate.scope, kind, nodeId))) {
+    throw new ApiError(400, "That teammate doesn't have scope to be assigned here.");
+  }
 }

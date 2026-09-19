@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withCapability, withSession, ApiError } from "@/lib/auth/requireCapability";
-import { isNodeWithinScopeSubtree } from "@/lib/auth/scope";
+import { isNodeWithinScopeSubtree, assertAssigneeAllowed } from "@/lib/auth/scope";
 import { assertNodeInOrg } from "@/lib/auth/org";
+
+const ACCOUNTABLE_SELECT = { select: { id: true, name: true, email: true } } as const;
 
 export const GET = withSession(async (req, _ctx, user) => {
   const initiativeId = req.nextUrl.searchParams.get("initiativeId");
@@ -11,7 +13,7 @@ export const GET = withSession(async (req, _ctx, user) => {
 
   const programs = await prisma.program.findMany({
     where: { initiativeId },
-    include: { accountable: true },
+    include: { accountable: ACCOUNTABLE_SELECT },
     orderBy: { createdAt: "asc" },
   });
   return NextResponse.json(programs);
@@ -24,10 +26,11 @@ export const POST = withCapability("Create/Edit Projects", async (req, _ctx, use
   if (!(await isNodeWithinScopeSubtree(user.scope, "initiative", body.initiativeId))) {
     throw new ApiError(403, "That initiative is outside your scope.");
   }
+  await assertAssigneeAllowed(user.organizationId, "initiative", body.initiativeId, body.accountableId);
 
   const program = await prisma.program.create({
     data: { initiativeId: body.initiativeId, name: body.name || "Untitled Program", description: body.description || null, accountableId: body.accountableId || null },
-    include: { accountable: true },
+    include: { accountable: ACCOUNTABLE_SELECT },
   });
   return NextResponse.json(program, { status: 201 });
 });

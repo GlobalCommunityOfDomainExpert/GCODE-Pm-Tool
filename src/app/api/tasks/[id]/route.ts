@@ -2,17 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireSession, ApiError } from "@/lib/auth/requireCapability";
 import { getCapabilitiesForRoles } from "@/lib/auth/capabilities";
-import { isNodeWithinScopeSubtree } from "@/lib/auth/scope";
+import { isNodeWithinScopeSubtree, assertAssigneeAllowed } from "@/lib/auth/scope";
 import { assertNodeInOrg } from "@/lib/auth/org";
 
 // Two ways in: a manager with "Create/Edit Tasks" can change any field on any
 // in-scope task; a Team Member with only "Execute Assigned Tasks" can change
 // status alone (the kanban drag-and-drop). NOTE: the spec's "further narrowed
-// to tasks where responsible_id = caller" isn't enforced here - Task.responsibleId
-// points at Person (v0.1's un-authenticated accountable/responsible directory),
-// a separate identity from User (v0.2's real accounts), and reconciling the two
-// is a real migration, not a route-level fix. Until that lands, any Team Member
-// can move the status of any in-scope task, not just their own assignment.
+// to tasks where responsible_id = caller" still isn't enforced here -
+// Task.responsibleId now points at User (real accounts, see migration
+// 20260919_repoint_accountable_responsible_to_user), so `responsibleId ===
+// user.id` is available, but restricting kanban drag-and-drop to only your
+// own tasks is a product decision, not implied by this migration - out of
+// scope here. Until that's decided, any Team Member can still move the
+// status of any in-scope task, not just their own assignment.
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireSession();
@@ -22,7 +24,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!canEditFully && !canExecute) throw new ApiError(403, "You don't have permission to do that.");
 
     await assertNodeInOrg("task", params.id, user.organizationId);
-    if (!(await isNodeWithinScopeSubtree(user.scope, "project", await projectIdForTask(params.id)))) {
+    const projectId = await projectIdForTask(params.id);
+    if (!(await isNodeWithinScopeSubtree(user.scope, "project", projectId))) {
       throw new ApiError(403, "This task is outside your scope.");
     }
 
@@ -34,6 +37,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
         throw new ApiError(403, "Your role can only change a task's status.");
       }
     }
+    if ("responsibleId" in body) {
+      await assertAssigneeAllowed(user.organizationId, "project", projectId, body.responsibleId);
+    }
 
     const data: Record<string, unknown> = {};
     if ("title" in body) data.title = body.title;
@@ -44,7 +50,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if ("startDate" in body) data.startDate = body.startDate ? new Date(body.startDate) : null;
     if ("dueDate" in body) data.dueDate = body.dueDate ? new Date(body.dueDate) : null;
 
-    const task = await prisma.task.update({ where: { id: params.id }, data, include: { responsible: true } });
+    const task = await prisma.task.update({
+      where: { id: params.id },
+      data,
+      include: { responsible: { select: { id: true, name: true, email: true } } },
+    });
     return NextResponse.json(task);
   } catch (err) {
     if (err instanceof ApiError) return NextResponse.json({ error: err.message }, { status: err.status });

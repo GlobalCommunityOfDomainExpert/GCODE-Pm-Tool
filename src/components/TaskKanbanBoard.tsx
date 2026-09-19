@@ -17,6 +17,7 @@ import { TaskDetailPanel } from "./TaskDetailPanel";
 import { ViewToggle, type ViewMode } from "./ViewToggle";
 import { TaskListView } from "./TaskListView";
 import { reportIfActionFailed } from "./ActionToast";
+import { Spinner } from "./Spinner";
 
 const COLUMN_COLOR: Record<string, string> = {
   "Not Started": "#64748b",
@@ -33,6 +34,8 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
   const [newTaskStatus, setNewTaskStatus] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>("cards");
+  const [movingIds, setMovingIds] = useState<Set<string>>(new Set());
+  const [boardRefreshing, setBoardRefreshing] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -43,13 +46,22 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
     if (!task || task.status === newStatus) return;
 
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
-    const res = await fetch(`/api/tasks/${taskId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: newStatus }),
-    });
-    if (await reportIfActionFailed(res, "Couldn't move this task.")) {
-      setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: task.status } : t)));
+    setMovingIds((prev) => new Set(prev).add(taskId));
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      if (await reportIfActionFailed(res, "Couldn't move this task.")) {
+        setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: task.status } : t)));
+      }
+    } finally {
+      setMovingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(taskId);
+        return next;
+      });
     }
   }
 
@@ -58,28 +70,30 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
     setViewingTask((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
   }
 
-  function refresh(updated: Partial<TaskItem> & { id?: string }) {
+  async function refresh(updated: Partial<TaskItem> & { id?: string }) {
     if (editingTask) {
       setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? { ...t, ...updated, id: t.id } : t)));
-    } else {
-      // A brand-new task: cheapest correct refresh is a full refetch since we don't
-      // get the created row back from CreateItemModal.
-      fetch(`/api/tasks?projectId=${projectId}`)
-        .then((r) => r.json())
-        .then((rows) =>
-          setTasks(
-            rows.map((r: { id: string; title: string; status: string; priority: string; responsible: { id: string; name: string } | null; description: string | null; startDate: string | null; dueDate: string | null }) => ({
-              id: r.id,
-              title: r.title,
-              status: r.status,
-              priority: r.priority,
-              responsible: r.responsible,
-              description: r.description,
-              startDate: r.startDate ? r.startDate.slice(0, 10) : null,
-              dueDate: r.dueDate ? r.dueDate.slice(0, 10) : null,
-            }))
-          )
-        );
+      return;
+    }
+    // A brand-new task: cheapest correct refresh is a full refetch since we don't
+    // get the created row back from CreateItemModal.
+    setBoardRefreshing(true);
+    try {
+      const rows = await fetch(`/api/tasks?projectId=${projectId}`).then((r) => r.json());
+      setTasks(
+        rows.map((r: { id: string; title: string; status: string; priority: string; responsible: { id: string; name: string; email: string | null } | null; description: string | null; startDate: string | null; dueDate: string | null }) => ({
+          id: r.id,
+          title: r.title,
+          status: r.status,
+          priority: r.priority,
+          responsible: r.responsible,
+          description: r.description,
+          startDate: r.startDate ? r.startDate.slice(0, 10) : null,
+          dueDate: r.dueDate ? r.dueDate.slice(0, 10) : null,
+        }))
+      );
+    } finally {
+      setBoardRefreshing(false);
     }
   }
 
@@ -87,25 +101,29 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
     <div>
       <div className="mb-6 flex items-center justify-between">
         <ViewToggle mode={mode} onChange={setMode} cardsLabel="Board" />
+        {boardRefreshing && <Spinner className="h-4 w-4 text-text-secondary" />}
       </div>
 
-      {mode === "cards" ? (
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
-          <div className="flex items-stretch gap-4 overflow-x-auto pb-4">
-            {TASK_STATUSES.map((status) => (
-              <Column
-                key={status}
-                status={status}
-                tasks={tasks.filter((t) => t.status === status)}
-                onAddTask={() => setNewTaskStatus(status)}
-                onTaskClick={setViewingTask}
-              />
-            ))}
-          </div>
-        </DndContext>
-      ) : (
-        <TaskListView tasks={tasks} onTaskClick={setViewingTask} />
-      )}
+      <div className={boardRefreshing ? "pointer-events-none opacity-60 transition-opacity" : "transition-opacity"}>
+        {mode === "cards" ? (
+          <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+            <div className="flex items-stretch gap-4 overflow-x-auto pb-4">
+              {TASK_STATUSES.map((status) => (
+                <Column
+                  key={status}
+                  status={status}
+                  tasks={tasks.filter((t) => t.status === status)}
+                  movingIds={movingIds}
+                  onAddTask={() => setNewTaskStatus(status)}
+                  onTaskClick={setViewingTask}
+                />
+              ))}
+            </div>
+          </DndContext>
+        ) : (
+          <TaskListView tasks={tasks} onTaskClick={setViewingTask} />
+        )}
+      </div>
 
       {viewingTask && (
         <TaskDetailPanel
@@ -139,11 +157,13 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
 function Column({
   status,
   tasks,
+  movingIds,
   onAddTask,
   onTaskClick,
 }: {
   status: string;
   tasks: TaskItem[];
+  movingIds: Set<string>;
   onAddTask: () => void;
   onTaskClick: (t: TaskItem) => void;
 }) {
@@ -162,7 +182,7 @@ function Column({
         style={{ minHeight: 80 }}
       >
         {tasks.map((task) => (
-          <TaskCard key={task.id} task={task} onClick={() => onTaskClick(task)} />
+          <TaskCard key={task.id} task={task} moving={movingIds.has(task.id)} onClick={() => onTaskClick(task)} />
         ))}
         <button
           onClick={onAddTask}
@@ -175,7 +195,7 @@ function Column({
   );
 }
 
-function TaskCard({ task, onClick }: { task: TaskItem; onClick: () => void }) {
+function TaskCard({ task, moving, onClick }: { task: TaskItem; moving: boolean; onClick: () => void }) {
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id });
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, opacity: isDragging ? 0.4 : 1, zIndex: isDragging ? 10 : undefined }
@@ -188,9 +208,12 @@ function TaskCard({ task, onClick }: { task: TaskItem; onClick: () => void }) {
       {...listeners}
       {...attributes}
       onClick={onClick}
-      className="mb-3 cursor-grab rounded-md border border-border bg-white p-3 shadow-card"
+      className={`mb-3 cursor-grab rounded-md border border-border bg-white p-3 shadow-card transition-opacity ${moving ? "opacity-60" : ""}`}
     >
-      <div className="mb-2 text-[13px] font-medium text-text-primary">{task.title}</div>
+      <div className="mb-2 flex items-center justify-between gap-2 text-[13px] font-medium text-text-primary">
+        <span>{task.title}</span>
+        {moving && <Spinner className="h-3 w-3 shrink-0 text-text-secondary" />}
+      </div>
       <div className="flex items-center justify-between">
         <PriorityBadge priority={task.priority} />
         <Avatar name={task.responsible?.name || null} />

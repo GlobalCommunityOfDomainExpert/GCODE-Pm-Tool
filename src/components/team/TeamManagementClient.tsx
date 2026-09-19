@@ -21,13 +21,19 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
   const [roleFilter, setRoleFilter] = useState("");
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [usersLoading, setUsersLoading] = useState(false);
 
   const loadUsers = useCallback(async () => {
-    const params = new URLSearchParams();
-    if (search) params.set("q", search);
-    if (roleFilter) params.set("role", roleFilter);
-    const res = await fetch(`/api/team/users?${params.toString()}`);
-    if (res.ok) setUsers(await res.json());
+    setUsersLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.set("q", search);
+      if (roleFilter) params.set("role", roleFilter);
+      const res = await fetch(`/api/team/users?${params.toString()}`);
+      if (res.ok) setUsers(await res.json());
+    } finally {
+      setUsersLoading(false);
+    }
   }, [search, roleFilter]);
 
   const loadCodes = useCallback(async () => {
@@ -110,6 +116,7 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
           roleFilter={roleFilter}
           onRoleFilterChange={setRoleFilter}
           allRoles={allRoles}
+          loading={usersLoading}
           onChanged={loadUsers}
         />
       )}

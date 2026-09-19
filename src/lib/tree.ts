@@ -1,19 +1,24 @@
 import { prisma } from "./prisma";
 import { getScopeChain } from "./auth/scope";
-import type { HierarchyCardItem, HierarchyLevel, Person, TaskItem, TreeNode } from "./types";
+import type { HierarchyCardItem, HierarchyLevel, Assignee, TaskItem, TreeNode } from "./types";
+
+// Accountable/responsible now point at User, which also carries
+// passwordHash/inviteTokenHash/etc - select only the fields the UI needs
+// instead of `include: { accountable: true }`, everywhere it's fetched.
+const ASSIGNEE_SELECT = { select: { id: true, name: true, email: true } } as const;
 
 // v0.1's data volume is six small tables (per spec section 6), so a single deep
 // include down to tasks is cheap and keeps progress/child-count math in one place
 // instead of N+1 querying per level.
 const DEEP_INCLUDE = {
-  accountable: true,
+  accountable: ASSIGNEE_SELECT,
   programs: {
     include: {
-      accountable: true,
+      accountable: ASSIGNEE_SELECT,
       projects: {
         include: {
-          accountable: true,
-          tasks: { include: { responsible: true } },
+          accountable: ASSIGNEE_SELECT,
+          tasks: { include: { responsible: ASSIGNEE_SELECT } },
         },
       },
     },
@@ -29,7 +34,7 @@ export async function getWorkspaceTree(workspaceId: string, organizationId: stri
   return prisma.workspace.findFirst({
     where: { id: workspaceId, organizationId },
     include: {
-      accountable: true,
+      accountable: ASSIGNEE_SELECT,
       initiatives: { include: DEEP_INCLUDE },
     },
   });
@@ -39,7 +44,7 @@ export async function getAllWorkspaces(organizationId: string) {
   return prisma.workspace.findMany({
     where: { organizationId },
     include: {
-      accountable: true,
+      accountable: ASSIGNEE_SELECT,
       initiatives: { include: DEEP_INCLUDE },
     },
     orderBy: { createdAt: "asc" },
@@ -76,8 +81,8 @@ function childCountOf(node: { initiatives?: unknown[]; programs?: unknown[]; pro
   return 0;
 }
 
-function toPerson(p: { id: string; name: string } | null): Person | null {
-  return p ? { id: p.id, name: p.name } : null;
+function toAssignee(p: { id: string; name: string; email: string | null } | null): Assignee | null {
+  return p ? { id: p.id, name: p.name, email: p.email } : null;
 }
 
 export function toCardItem(node: {
@@ -85,7 +90,7 @@ export function toCardItem(node: {
   name: string;
   description: string | null;
   status: string | null;
-  accountable: { id: string; name: string } | null;
+  accountable: { id: string; name: string; email: string | null } | null;
   initiatives?: unknown[];
   programs?: unknown[];
   projects?: unknown[];
@@ -97,7 +102,7 @@ export function toCardItem(node: {
     name: node.name,
     description: node.description,
     status: node.status,
-    accountable: toPerson(node.accountable),
+    accountable: toAssignee(node.accountable),
     childCount: childCountOf(node),
     progress,
     done,
@@ -117,8 +122,8 @@ type TreeSourceNode = {
   status?: string | null;
   priority?: string | null;
   dueDate?: Date | null;
-  accountable?: { id: string; name: string } | null;
-  responsible?: { id: string; name: string } | null;
+  accountable?: { id: string; name: string; email: string | null } | null;
+  responsible?: { id: string; name: string; email: string | null } | null;
   initiatives?: TreeSourceNode[];
   programs?: TreeSourceNode[];
   projects?: TreeSourceNode[];
@@ -207,7 +212,7 @@ export function toTreeNode(node: TreeSourceNode, level: HierarchyLevel): TreeNod
     level,
     name: (isTask ? node.title : node.name) || "",
     status: node.status ?? null,
-    accountable: toPerson((isTask ? node.responsible : node.accountable) ?? null),
+    accountable: toAssignee((isTask ? node.responsible : node.accountable) ?? null),
     priority: isTask ? node.priority ?? null : null,
     dueDate: isTask && node.dueDate ? new Date(node.dueDate).toISOString().slice(0, 10) : null,
     progress,
@@ -220,7 +225,7 @@ export function toTaskItem(t: {
   title: string;
   status: string;
   priority: string;
-  responsible: { id: string; name: string } | null;
+  responsible: { id: string; name: string; email: string | null } | null;
   description: string | null;
   startDate: Date | null;
   dueDate: Date | null;
@@ -230,7 +235,7 @@ export function toTaskItem(t: {
     title: t.title,
     status: t.status,
     priority: t.priority,
-    responsible: toPerson(t.responsible),
+    responsible: toAssignee(t.responsible),
     description: t.description,
     startDate: t.startDate ? t.startDate.toISOString().slice(0, 10) : null,
     dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,

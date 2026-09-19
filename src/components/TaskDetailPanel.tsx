@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { TASK_STATUSES, type TaskItem } from "@/lib/types";
 import { PriorityBadge, Avatar } from "./Badges";
 import { reportIfActionFailed } from "./ActionToast";
+import { Spinner } from "./Spinner";
 
 const STATUS_COLOR: Record<string, string> = {
   "Not Started": "bg-slate-100 text-slate-600",
@@ -29,6 +30,7 @@ export function TaskDetailPanel({
   const [status, setStatus] = useState(task.status);
   const [description, setDescription] = useState(task.description || "");
   const [savingDescription, setSavingDescription] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -58,14 +60,19 @@ export function TaskDetailPanel({
     const previous = status;
     setStatus(next);
     onUpdated({ status: next });
-    const res = await fetch(`/api/tasks/${task.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: next }),
-    });
-    if (await reportIfActionFailed(res, "Couldn't change this task's status.")) {
-      setStatus(previous);
-      onUpdated({ status: previous });
+    setSavingStatus(true);
+    try {
+      const res = await fetch(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: next }),
+      });
+      if (await reportIfActionFailed(res, "Couldn't change this task's status.")) {
+        setStatus(previous);
+        onUpdated({ status: previous });
+      }
+    } finally {
+      setSavingStatus(false);
     }
   }
 
@@ -97,7 +104,8 @@ export function TaskDetailPanel({
             <select
               value={status}
               onChange={(e) => handleStatusChange(e.target.value)}
-              className={`rounded-full border-0 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide ${STATUS_COLOR[status] || "bg-slate-100 text-slate-600"}`}
+              disabled={savingStatus}
+              className={`rounded-full border-0 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide disabled:opacity-60 ${STATUS_COLOR[status] || "bg-slate-100 text-slate-600"}`}
             >
               {TASK_STATUSES.map((s) => (
                 <option key={s} value={s}>
@@ -105,6 +113,7 @@ export function TaskDetailPanel({
                 </option>
               ))}
             </select>
+            {savingStatus && <Spinner className="h-3.5 w-3.5 text-text-secondary" />}
             <span className="text-[12px] font-mono text-text-secondary">{ticketCode}</span>
           </div>
           <div className="flex items-center gap-1">
