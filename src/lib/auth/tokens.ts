@@ -1,4 +1,4 @@
-import { randomBytes, createHash } from "crypto";
+import { randomBytes, randomInt, createHash } from "crypto";
 
 // Cryptographically random, high-entropy - used for session ids and magic-link
 // tokens. Never derived from anything client-suppliable.
@@ -23,4 +23,13 @@ export function generateInviteCode(orgName: string): string {
   const prefix = (orgName.replace(/[^A-Za-z0-9]/g, "").slice(0, 5) || "GCODE").toUpperCase();
   const suffix = randomBytes(3).toString("hex").toUpperCase(); // 6 hex chars
   return `${prefix}-${suffix}`;
+}
+
+// Org-registration email OTP - short, typed by hand, so 6 digits (not
+// randomToken's hex) and hashed at rest same as a magic-link token (see
+// hashToken above): a DB read alone can't be replayed, only the code mailed
+// to the recipient can. randomInt is rejection-sampled, so this is uniform
+// over 000000-999999, not biased like `Math.random() % 1e6` would be.
+export function generateOtp(): string {
+  return randomInt(0, 1_000_000).toString().padStart(6, "0");
 }

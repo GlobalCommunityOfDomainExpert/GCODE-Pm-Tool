@@ -227,6 +227,23 @@ model RoleCapability {
   @@id([roleName, capability])
 }
 
+// Holds a not-yet-created organization+founder while the founder's email is
+// OTP-verified. One row per email (re-submitting the register form just
+// overwrites it with a fresh code) - nothing here becomes real until
+// /api/auth/register-org/verify-otp succeeds, which creates the Organization
+// + User and deletes this row in the same transaction.
+model PendingOrgRegistration {
+  id           String   @id @default(cuid())
+  orgName      String
+  name         String
+  email        String   @unique
+  passwordHash String
+  otpHash      String
+  otpExpiresAt DateTime
+  attempts     Int      @default(0)
+  createdAt    DateTime @default(now())
+}
+
 // Exists so a real build can rate-limit/audit resets; the UI response is
 // identical whether or not a matching account was found.
 model PasswordResetRequest {
