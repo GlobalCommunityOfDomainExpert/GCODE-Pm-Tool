@@ -11,13 +11,14 @@ import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import { CreateItemModal } from "./CreateItemModal";
 import { reportIfActionFailed } from "./ActionToast";
 import { Spinner } from "./Spinner";
+import { LEVEL_ICON_PATH } from "@/lib/levelIcons";
 
 const LEVEL_ICON: Record<HierarchyLevel, { bg: string; fg: string; path: string }> = {
-  workspace: { bg: "bg-indigo-100", fg: "text-indigo-700", path: "M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M15 9h.01M15 13h.01" },
-  initiative: { bg: "bg-fuchsia-100", fg: "text-fuchsia-700", path: "M12 2a10 10 0 100 20 10 10 0 000-20zm0 4a6 6 0 100 12 6 6 0 000-12z" },
-  program: { bg: "bg-sky-100", fg: "text-sky-700", path: "M4 6h16M4 12h16M4 18h16" },
-  project: { bg: "bg-amber-100", fg: "text-amber-700", path: "M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" },
-  task: { bg: "bg-slate-100", fg: "text-slate-500", path: "M9 12l2 2 4-4" },
+  workspace: { bg: "bg-indigo-100", fg: "text-indigo-700", path: LEVEL_ICON_PATH.workspace },
+  initiative: { bg: "bg-fuchsia-100", fg: "text-fuchsia-700", path: LEVEL_ICON_PATH.initiative },
+  program: { bg: "bg-sky-100", fg: "text-sky-700", path: LEVEL_ICON_PATH.program },
+  project: { bg: "bg-amber-100", fg: "text-amber-700", path: LEVEL_ICON_PATH.project },
+  task: { bg: "bg-slate-100", fg: "text-slate-500", path: LEVEL_ICON_PATH.task },
 };
 
 export function HierarchyCardGrid({

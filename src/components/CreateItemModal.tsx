@@ -4,6 +4,7 @@ import { useState } from "react";
 import { AssigneeCombobox } from "./AssigneeCombobox";
 import { reportIfActionFailed } from "./ActionToast";
 import { Spinner } from "./Spinner";
+import { Modal } from "./Modal";
 import {
   CONTAINER_STATUSES,
   LEVEL_LABEL,
@@ -15,7 +16,11 @@ import {
   type TaskItem,
 } from "@/lib/types";
 import { LEVEL_ENDPOINT as ENDPOINT } from "@/lib/endpoints";
+import { LEVEL_ICON_PATH } from "@/lib/levelIcons";
 import type { ScopeKind } from "@/lib/auth/scope";
+
+const INPUT_CLASS =
+  "w-full rounded-md border border-border bg-white px-3 py-2.5 text-[13px] text-text-primary outline-none transition-shadow focus:border-primary focus:ring-2 focus:ring-primary/15";
 
 const CONTAINER_LEVELS: HierarchyLevel[] = ["workspace", "initiative", "program", "project"];
 
@@ -148,118 +153,108 @@ export function CreateItemModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[4000] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="w-full max-w-[520px] overflow-hidden rounded-lg border border-border bg-white shadow-xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex h-[72px] items-center bg-gradient-to-br from-indigo-600 to-sky-500 px-6">
-          <h2 className="text-lg font-semibold text-white">
-            {isEdit ? `Edit ${label}` : `New ${label}`}
-          </h2>
-        </div>
+    <Modal
+      onClose={onClose}
+      title={isEdit ? `Edit ${label}` : `New ${label}`}
+      subtitle={isEdit ? undefined : `Add a ${label.toLowerCase()} to this ${isContainer ? "level" : "board"}.`}
+      maxWidth="560px"
+      closeDisabled={saving}
+      icon={
+        <svg viewBox="0 0 24 24" className="h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d={LEVEL_ICON_PATH[level]} />
+        </svg>
+      }
+      footer={
+        <>
+          <button
+            onClick={onClose}
+            disabled={saving}
+            className="rounded-sm px-4 py-2.5 text-[13px] font-medium text-text-secondary hover:bg-slate-100 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !name.trim()}
+            className="flex items-center gap-2 rounded-sm bg-primary px-5 py-2.5 text-[13px] font-medium text-white hover:bg-primary-hover disabled:opacity-50"
+          >
+            {saving && <Spinner />}
+            {saving ? (isEdit ? "Saving…" : "Creating…") : isEdit ? "Save" : "Create"}
+          </button>
+        </>
+      }
+    >
+      <div className="grid grid-cols-2 gap-4">
+        <Field label={level === "task" ? "Title" : "Name"} span2>
+          <input
+            autoFocus
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={`e.g. ${label} name`}
+            className={INPUT_CLASS}
+          />
+        </Field>
 
-        <div className="p-6">
-          <div className="mb-6 grid grid-cols-2 gap-4">
-            <Field label={level === "task" ? "Title" : "Name"} span2>
-              <input
-                autoFocus
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={`e.g. ${label} name`}
-                className="nfm-input"
-              />
+        <Field label="Description (optional)" span2>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={3}
+            className={`${INPUT_CLASS} resize-y`}
+          />
+        </Field>
+
+        {isContainer && (
+          <Field label="Accountable" span2={level !== "project"}>
+            <AssigneeCombobox value={accountable} onChange={setAccountable} kind={assigneeKind} nodeId={assigneeNodeId} />
+          </Field>
+        )}
+
+        {level === "project" && (
+          <Field label="Status">
+            <select value={status} onChange={(e) => setStatus(e.target.value)} className={INPUT_CLASS}>
+              {CONTAINER_STATUSES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+          </Field>
+        )}
+
+        {level === "task" && (
+          <>
+            <Field label="Status">
+              <select value={status} onChange={(e) => setStatus(e.target.value)} className={INPUT_CLASS}>
+                {TASK_STATUSES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
             </Field>
-
-            <Field label="Description (optional)" span2>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={3}
-                className="nfm-input resize-y"
-              />
+            <Field label="Priority">
+              <select value={priority} onChange={(e) => setPriority(e.target.value)} className={INPUT_CLASS}>
+                {TASK_PRIORITIES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
             </Field>
-
-            {isContainer && (
-              <Field label="Accountable" span2={level !== "project"}>
-                <AssigneeCombobox value={accountable} onChange={setAccountable} kind={assigneeKind} nodeId={assigneeNodeId} />
-              </Field>
-            )}
-
-            {level === "project" && (
-              <Field label="Status">
-                <select value={status} onChange={(e) => setStatus(e.target.value)} className="nfm-input">
-                  {CONTAINER_STATUSES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            )}
-
-            {level === "task" && (
-              <>
-                <Field label="Status">
-                  <select value={status} onChange={(e) => setStatus(e.target.value)} className="nfm-input">
-                    {TASK_STATUSES.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Priority">
-                  <select value={priority} onChange={(e) => setPriority(e.target.value)} className="nfm-input">
-                    {TASK_PRIORITIES.map((p) => (
-                      <option key={p} value={p}>
-                        {p}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-                <Field label="Responsible">
-                  <AssigneeCombobox value={responsible} onChange={setResponsible} kind={assigneeKind} nodeId={assigneeNodeId} />
-                </Field>
-                <Field label="Start Date (optional)">
-                  <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="nfm-input" />
-                </Field>
-                <Field label="Due Date">
-                  <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className="nfm-input" />
-                </Field>
-              </>
-            )}
-          </div>
-
-          <div className="flex justify-end gap-3">
-            <button onClick={onClose} className="rounded-sm px-4 py-2.5 text-[13px] font-medium text-text-secondary hover:bg-slate-100">
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving || !name.trim()}
-              className="flex items-center gap-2 rounded-sm bg-primary px-5 py-2.5 text-[13px] font-medium text-white hover:bg-primary-hover disabled:opacity-50"
-            >
-              {saving && <Spinner />}
-              {saving ? (isEdit ? "Saving…" : "Creating…") : isEdit ? "Save" : "Create"}
-            </button>
-          </div>
-        </div>
+            <Field label="Responsible">
+              <AssigneeCombobox value={responsible} onChange={setResponsible} kind={assigneeKind} nodeId={assigneeNodeId} />
+            </Field>
+            <Field label="Start Date (optional)">
+              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={INPUT_CLASS} />
+            </Field>
+            <Field label="Due Date">
+              <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} className={INPUT_CLASS} />
+            </Field>
+          </>
+        )}
       </div>
-
-      <style jsx global>{`
-        .nfm-input {
-          width: 100%;
-          padding: 10px 12px;
-          border: 1px solid #e2e8f0;
-          border-radius: 6px;
-          font-size: 13px;
-          font-family: inherit;
-          outline: none;
-          background: white;
-        }
-      `}</style>
-    </div>
+    </Modal>
   );
 }
 
