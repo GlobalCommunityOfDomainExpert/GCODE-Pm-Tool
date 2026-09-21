@@ -2,7 +2,10 @@
 // upserts only, never deletes/touches Workspace/Initiative/Program/Project/
 // Task/Person data (unlike prisma/seed.ts, which wipes and reseeds those).
 import { PrismaClient } from "@prisma/client";
-import { ROLE_CAPABILITY_MATRIX } from "../src/lib/auth/capabilities";
+// From capabilityConstants directly, not capabilities.ts - that module has a
+// top-level React.cache(...) call (RSC-only API) that throws immediately on
+// import under tsx/plain Node, which is how this script runs.
+import { ROLE_CAPABILITY_MATRIX } from "../src/lib/auth/capabilityConstants";
 
 const prisma = new PrismaClient();
 
