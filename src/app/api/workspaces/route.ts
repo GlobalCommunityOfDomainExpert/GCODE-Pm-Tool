@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withCapability, withSession } from "@/lib/auth/requireCapability";
 import { assertAssigneeAllowed } from "@/lib/auth/scope";
@@ -29,5 +30,6 @@ export const POST = withCapability("Create/Edit Workspaces", async (req, _ctx, u
     },
     include: { accountable: ACCOUNTABLE_SELECT },
   });
+  revalidateTag(`tree:${user.organizationId}`);
   return NextResponse.json(workspace, { status: 201 });
 });

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withCapability, ApiError } from "@/lib/auth/requireCapability";
 import { isNodeWithinScopeSubtree, assertAssigneeAllowed } from "@/lib/auth/scope";
@@ -25,6 +26,8 @@ export const PATCH = withCapability("Create/Edit Workspaces", async (req, { para
     data,
     include: { accountable: { select: { id: true, name: true, email: true } } },
   });
+  revalidateTag(`tree:${user.organizationId}`);
+  revalidateTag(`node:initiative:${params.id}`);
   return NextResponse.json(initiative);
 });
 
@@ -34,5 +37,7 @@ export const DELETE = withCapability("Create/Edit Workspaces", async (_req, { pa
     throw new ApiError(403, "This initiative is outside your scope.");
   }
   await prisma.initiative.delete({ where: { id: params.id } });
+  revalidateTag(`tree:${user.organizationId}`);
+  revalidateTag(`node:initiative:${params.id}`);
   return new NextResponse(null, { status: 204 });
 });

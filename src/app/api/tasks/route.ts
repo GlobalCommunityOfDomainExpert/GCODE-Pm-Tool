@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withCapability, withSession, ApiError } from "@/lib/auth/requireCapability";
 import { isNodeWithinScopeSubtree, assertAssigneeAllowed } from "@/lib/auth/scope";
@@ -41,5 +42,6 @@ export const POST = withCapability("Create/Edit Tasks", async (req, _ctx, user) 
     },
     include: { responsible: RESPONSIBLE_SELECT },
   });
+  revalidateTag(`tree:${user.organizationId}`);
   return NextResponse.json(task, { status: 201 });
 });

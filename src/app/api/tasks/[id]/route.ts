@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSession, ApiError } from "@/lib/auth/requireCapability";
 import { getCapabilitiesForRoles } from "@/lib/auth/capabilities";
@@ -55,6 +56,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       data,
       include: { responsible: { select: { id: true, name: true, email: true } } },
     });
+    revalidateTag(`tree:${user.organizationId}`);
     return NextResponse.json(task);
   } catch (err) {
     if (err instanceof ApiError) return NextResponse.json({ error: err.message }, { status: err.status });
@@ -74,6 +76,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     }
 
     await prisma.task.delete({ where: { id: params.id } });
+    revalidateTag(`tree:${user.organizationId}`);
     return new NextResponse(null, { status: 204 });
   } catch (err) {
     if (err instanceof ApiError) return NextResponse.json({ error: err.message }, { status: err.status });

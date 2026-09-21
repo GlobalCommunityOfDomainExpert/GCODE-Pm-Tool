@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withCapability, withSession, ApiError } from "@/lib/auth/requireCapability";
 import { isNodeWithinScopeSubtree, assertAssigneeAllowed } from "@/lib/auth/scope";
@@ -32,5 +33,6 @@ export const POST = withCapability("Create/Edit Projects", async (req, _ctx, use
     data: { programId: body.programId, name: body.name || "Untitled Project", description: body.description || null, accountableId: body.accountableId || null, status: body.status || "On Track" },
     include: { accountable: ACCOUNTABLE_SELECT },
   });
+  revalidateTag(`tree:${user.organizationId}`);
   return NextResponse.json(project, { status: 201 });
 });

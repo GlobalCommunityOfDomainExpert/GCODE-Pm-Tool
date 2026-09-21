@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { prisma } from "./prisma";
 import { getScopeChain } from "./auth/scope";
 import type { HierarchyCardItem, HierarchyLevel, Assignee, TaskItem, TreeNode } from "./types";
@@ -30,25 +31,47 @@ const DEEP_INCLUDE = {
 // A mismatched workspaceId (wrong org, or someone else's org entirely) returns
 // null exactly like a nonexistent id would, so callers already handle it via
 // their existing not-found path with no extra branching.
+// This deep include is re-run on every navigation into a hierarchy page
+// (all of them are force-dynamic, no route-level cache). Data-layer caching
+// via unstable_cache, tagged per org, buys back that DB round trip on
+// repeat navigations without touching force-dynamic itself - every
+// create/update/delete under this org's tree (workspaces/route.ts,
+// initiatives/[id]/route.ts, etc. - see revalidateTag(`tree:${organizationId}`)
+// call sites) invalidates the tag, and a 5-minute revalidate is a self-heal
+// safety net in case any write path is ever added without that call.
+// unstable_cache's `tags`/keyParts must be static per call to the wrapper,
+// so the wrapper is created fresh inside each exported function (the
+// standard pattern for a per-argument cache tag) rather than once at module
+// scope.
 export async function getWorkspaceTree(workspaceId: string, organizationId: string) {
-  return prisma.workspace.findFirst({
-    where: { id: workspaceId, organizationId },
-    include: {
-      accountable: ASSIGNEE_SELECT,
-      initiatives: { include: DEEP_INCLUDE },
-    },
-  });
+  return unstable_cache(
+    async () =>
+      prisma.workspace.findFirst({
+        where: { id: workspaceId, organizationId },
+        include: {
+          accountable: ASSIGNEE_SELECT,
+          initiatives: { include: DEEP_INCLUDE },
+        },
+      }),
+    [`tree:getWorkspaceTree:${workspaceId}:${organizationId}`],
+    { tags: [`tree:${organizationId}`], revalidate: 300 }
+  )();
 }
 
 export async function getAllWorkspaces(organizationId: string) {
-  return prisma.workspace.findMany({
-    where: { organizationId },
-    include: {
-      accountable: ASSIGNEE_SELECT,
-      initiatives: { include: DEEP_INCLUDE },
-    },
-    orderBy: { createdAt: "asc" },
-  });
+  return unstable_cache(
+    async () =>
+      prisma.workspace.findMany({
+        where: { organizationId },
+        include: {
+          accountable: ASSIGNEE_SELECT,
+          initiatives: { include: DEEP_INCLUDE },
+        },
+        orderBy: { createdAt: "asc" },
+      }),
+    [`tree:getAllWorkspaces:${organizationId}`],
+    { tags: [`tree:${organizationId}`], revalidate: 300 }
+  )();
 }
 
 type AnyTask = { status: string };

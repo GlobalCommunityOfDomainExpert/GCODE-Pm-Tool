@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withCapability, ApiError } from "@/lib/auth/requireCapability";
 import { isNodeWithinScopeSubtree, assertAssigneeAllowed } from "@/lib/auth/scope";
@@ -26,6 +27,8 @@ export const PATCH = withCapability("Create/Edit Projects", async (req, { params
     data,
     include: { accountable: { select: { id: true, name: true, email: true } } },
   });
+  revalidateTag(`tree:${user.organizationId}`);
+  revalidateTag(`node:project:${params.id}`);
   return NextResponse.json(project);
 });
 
@@ -35,5 +38,7 @@ export const DELETE = withCapability("Create/Edit Projects", async (_req, { para
     throw new ApiError(403, "This project is outside your scope.");
   }
   await prisma.project.delete({ where: { id: params.id } });
+  revalidateTag(`tree:${user.organizationId}`);
+  revalidateTag(`node:project:${params.id}`);
   return new NextResponse(null, { status: 204 });
 });
