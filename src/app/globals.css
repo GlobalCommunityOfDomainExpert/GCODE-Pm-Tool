@@ -33,3 +33,25 @@ body {
 .animate-modal-panel {
   animation: modal-panel-in 180ms cubic-bezier(0.16, 1, 0.3, 1);
 }
+
+/* Baseline interaction feedback for every button/link in the app - added
+   here instead of per-component because most buttons were hand-rolled
+   without cursor-pointer (native <button> defaults to cursor:default,
+   unlike <a>), without a transition on their hover state (a hard color
+   cut instead of an ease), and without any pressed-state feedback at all.
+   Component-level Tailwind classes (transition-opacity, etc.) still take
+   precedence over this where they're more specific. */
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button,
+a {
+  transition-property: background-color, border-color, color, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.98);
+}
