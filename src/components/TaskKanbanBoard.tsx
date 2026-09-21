@@ -35,7 +35,6 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
   const [newTaskStatus, setNewTaskStatus] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>("cards");
   const [movingIds, setMovingIds] = useState<Set<string>>(new Set());
-  const [boardRefreshing, setBoardRefreshing] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -70,30 +69,35 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
     setViewingTask((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
   }
 
-  async function refresh(updated: Partial<TaskItem> & { id?: string }) {
+  // CreateItemModal's POST/PATCH already returns the full saved row, so a
+  // create or an edit patches local state directly - no second network round
+  // trip and no whole-board dim while it resolves.
+  function handleTaskSaved(saved?: Record<string, unknown>) {
+    if (!saved) return;
+    const s = saved as {
+      id: string;
+      title: string;
+      status: string;
+      priority: string;
+      responsible: { id: string; name: string; email: string | null } | null;
+      description: string | null;
+      startDate: string | null;
+      dueDate: string | null;
+    };
+    const task: TaskItem = {
+      id: s.id,
+      title: s.title,
+      status: s.status,
+      priority: s.priority,
+      responsible: s.responsible,
+      description: s.description,
+      startDate: s.startDate ? s.startDate.slice(0, 10) : null,
+      dueDate: s.dueDate ? s.dueDate.slice(0, 10) : null,
+    };
     if (editingTask) {
-      setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? { ...t, ...updated, id: t.id } : t)));
-      return;
-    }
-    // A brand-new task: cheapest correct refresh is a full refetch since we don't
-    // get the created row back from CreateItemModal.
-    setBoardRefreshing(true);
-    try {
-      const rows = await fetch(`/api/tasks?projectId=${projectId}`).then((r) => r.json());
-      setTasks(
-        rows.map((r: { id: string; title: string; status: string; priority: string; responsible: { id: string; name: string; email: string | null } | null; description: string | null; startDate: string | null; dueDate: string | null }) => ({
-          id: r.id,
-          title: r.title,
-          status: r.status,
-          priority: r.priority,
-          responsible: r.responsible,
-          description: r.description,
-          startDate: r.startDate ? r.startDate.slice(0, 10) : null,
-          dueDate: r.dueDate ? r.dueDate.slice(0, 10) : null,
-        }))
-      );
-    } finally {
-      setBoardRefreshing(false);
+      setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? task : t)));
+    } else {
+      setTasks((prev) => [...prev, task]);
     }
   }
 
@@ -101,10 +105,9 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
     <div>
       <div className="mb-6 flex items-center justify-between">
         <ViewToggle mode={mode} onChange={setMode} cardsLabel="Board" />
-        {boardRefreshing && <Spinner className="h-4 w-4 text-text-secondary" />}
       </div>
 
-      <div className={boardRefreshing ? "pointer-events-none opacity-60 transition-opacity" : "transition-opacity"}>
+      <div>
         {mode === "cards" ? (
           <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
             <div className="flex items-stretch gap-4 overflow-x-auto pb-4">
@@ -147,7 +150,7 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
             setEditingTask(null);
             setNewTaskStatus(null);
           }}
-          onSaved={() => refresh(editingTask || {})}
+          onSaved={handleTaskSaved}
         />
       )}
     </div>

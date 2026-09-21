@@ -61,7 +61,7 @@ export function CreateItemModal({
   editTask?: TaskItem;
   editItem?: HierarchyCardItem;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (saved?: Record<string, unknown>) => void;
 }) {
   const isEdit = !!editTask || !!editItem;
   const [name, setName] = useState(editTask?.title || editItem?.name || "");
@@ -145,7 +145,11 @@ export function CreateItemModal({
       // open (toast explains why) instead of calling onSaved()/onClose().
       if (await reportIfActionFailed(res, `Couldn't save this ${label.toLowerCase()}.`)) return;
 
-      onSaved();
+      // Every POST/PATCH route here returns the created/updated row - hand it
+      // to the caller so it can patch local state directly instead of
+      // re-fetching the whole list/tree.
+      const saved = await res.json().catch(() => undefined);
+      onSaved(saved);
       onClose();
     } finally {
       setSaving(false);

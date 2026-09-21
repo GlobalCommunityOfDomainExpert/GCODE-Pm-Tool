@@ -17,6 +17,14 @@ import type { ScopeKind } from "@/lib/auth/scope";
 // wrapper - because this combobox always lives inside Modal's scrollable
 // body: an absolute panel there gets clipped by (or adds to the scroll
 // height of) that overflow-y-auto container instead of floating over it.
+//
+// Module-scope cache of the default (empty-query) result list, keyed by
+// `kind:nodeId`. Who's in scope for a level rarely changes within a
+// session, so repeat opens of the same field skip the round trip entirely -
+// stale until the next full page load/navigation if an admin edits scope
+// mid-session, which is an accepted tradeoff for how rarely that happens.
+const defaultResultsCache = new Map<string, Assignee[]>();
+
 export function AssigneeCombobox({
   value,
   onChange,
@@ -40,6 +48,15 @@ export function AssigneeCombobox({
 
   useEffect(() => {
     if (!open) return;
+    const cacheKey = `${kind}:${nodeId}`;
+    if (!query.trim()) {
+      const cached = defaultResultsCache.get(cacheKey);
+      if (cached) {
+        setResults(cached);
+        setLoading(false);
+        return;
+      }
+    }
     setLoading(true);
     const handle = setTimeout(async () => {
       const params = new URLSearchParams();
@@ -50,7 +67,9 @@ export function AssigneeCombobox({
       if (query.trim()) params.set("q", query.trim());
       try {
         const res = await fetch(`/api/team/assignable-users?${params.toString()}`);
-        setResults(res.ok ? await res.json() : []);
+        const data = res.ok ? await res.json() : [];
+        setResults(data);
+        if (!query.trim() && res.ok) defaultResultsCache.set(cacheKey, data);
       } finally {
         setLoading(false);
       }

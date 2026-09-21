@@ -1,16 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState } from "react";
 import type { HierarchyCardItem, HierarchyLevel } from "@/lib/types";
 import { LEVEL_LABEL } from "@/lib/types";
-import { LEVEL_ENDPOINT } from "@/lib/endpoints";
 import { Avatar, StatusBadge } from "./Badges";
 import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import { CreateItemModal } from "./CreateItemModal";
-import { reportIfActionFailed } from "./ActionToast";
-import { Spinner } from "./Spinner";
 import { LEVEL_ICON_PATH } from "@/lib/levelIcons";
 
 const LEVEL_ICON: Record<HierarchyLevel, { bg: string; fg: string; path: string }> = {
@@ -23,20 +19,22 @@ const LEVEL_ICON: Record<HierarchyLevel, { bg: string; fg: string; path: string 
 
 export function HierarchyCardGrid({
   items,
+  onItemUpdated,
+  onItemDeleted,
   level,
   childLevel,
   basePath,
 }: {
   items: HierarchyCardItem[];
+  onItemUpdated: (saved?: Record<string, unknown>) => void;
+  onItemDeleted: (item: HierarchyCardItem) => Promise<void>;
   level: HierarchyLevel;
   childLevel: HierarchyLevel | null;
   basePath: string;
 }) {
-  const router = useRouter();
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<HierarchyCardItem | null>(null);
   const [editTarget, setEditTarget] = useState<HierarchyCardItem | null>(null);
-  const [isRefreshing, startRefresh] = useTransition();
 
   useEffect(() => {
     if (!menuOpenId) return;
@@ -60,14 +58,16 @@ export function HierarchyCardGrid({
 
   async function handleDelete() {
     if (!deleteTarget) return;
-    const res = await fetch(`${LEVEL_ENDPOINT[level]}/${deleteTarget.id}`, { method: "DELETE" });
-    if (await reportIfActionFailed(res, `Couldn't delete this ${LEVEL_LABEL[level].toLowerCase()}.`)) return;
+    const target = deleteTarget;
     setDeleteTarget(null);
-    startRefresh(() => router.refresh());
+    // Parent owns items + treeItems together, so it does the optimistic
+    // removal (both views) and the fetch/revert - this just hands off which
+    // item and waits for the modal's own spinner.
+    await onItemDeleted(target);
   }
 
   return (
-    <div className={`grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4 ${isRefreshing ? "pointer-events-none opacity-60 transition-opacity" : "transition-opacity"}`}>
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
       {items.map((item) => (
         <div
           key={item.id}
@@ -172,12 +172,7 @@ export function HierarchyCardGrid({
       )}
 
       {editTarget && (
-        <CreateItemModal
-          level={level}
-          editItem={editTarget}
-          onClose={() => setEditTarget(null)}
-          onSaved={() => startRefresh(() => router.refresh())}
-        />
+        <CreateItemModal level={level} editItem={editTarget} onClose={() => setEditTarget(null)} onSaved={onItemUpdated} />
       )}
     </div>
   );

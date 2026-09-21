@@ -79,15 +79,20 @@ export function TaskDetailPanel({
   const descriptionDirty = description !== (task.description || "");
 
   async function handleSaveDescription() {
+    const previous = task.description || "";
+    const next = description;
+    onUpdated({ description: next });
     setSavingDescription(true);
     try {
       const res = await fetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description }),
+        body: JSON.stringify({ description: next }),
       });
-      if (await reportIfActionFailed(res, "Couldn't save this description.")) return;
-      onUpdated({ description });
+      if (await reportIfActionFailed(res, "Couldn't save this description.")) {
+        setDescription(previous);
+        onUpdated({ description: previous });
+      }
     } finally {
       setSavingDescription(false);
     }
