@@ -1,4 +1,3 @@
-import { cache } from "react";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { randomToken } from "./tokens";
@@ -37,9 +36,12 @@ export async function createSession(userId: string): Promise<void> {
 // Safe to call from Server Components (read-only) and Route Handlers alike.
 // Resolves the caller's role/scope from the DB every time - this is the only
 // place in the app that's allowed to answer "who is this request from."
-// Wrapped in React.cache so the layout and the page it wraps - which both
-// call this per request - share one DB round trip instead of two.
-export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
+// NOT wrapped in React.cache: that API only works inside the React Server
+// Component render tree, and this is also called from Route Handlers
+// (src/lib/auth/requireCapability.ts), which run outside it - React.cache
+// there throws "cache is not a function" at build/runtime since Next
+// resolves a plain `react` build (no `cache` export) for route bundles.
+export async function getSessionUser(): Promise<SessionUser | null> {
   const id = cookies().get(COOKIE_NAME)?.value;
   if (!id) return null;
 
@@ -60,7 +62,7 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
     scope: user.scope,
     status: user.status,
   };
-});
+}
 
 export async function destroySession(): Promise<void> {
   const id = cookies().get(COOKIE_NAME)?.value;

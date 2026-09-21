@@ -1,4 +1,3 @@
-import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
@@ -13,12 +12,11 @@ export * from "./capabilityConstants";
 // wiring; the `capabilities:${organizationId}` tag and 5-minute revalidate
 // are just a safety net for if an edit/delete route is ever added.
 //
-// Two layers, composed outer-to-inner on purpose: React.cache (per-request
-// dedup - the layout and the page it wraps both call this once per render)
-// wraps unstable_cache (cross-request data cache) wraps the DB call. That
-// order means a single request still collapses to one call even when the
-// data cache is also warm.
-export const getCapabilitiesForRoles = cache(async (organizationId: string, roles: string[]): Promise<Set<string>> => {
+// unstable_cache only (no React.cache): this is called from Route Handlers
+// too (src/lib/auth/requireCapability.ts), which run outside the React
+// Server Component render tree - React.cache throws there since Next
+// resolves a plain `react` build (no `cache` export) for route bundles.
+export async function getCapabilitiesForRoles(organizationId: string, roles: string[]): Promise<Set<string>> {
   if (roles.length === 0) return new Set();
   const sortedRoles = [...roles].sort();
 
@@ -38,4 +36,4 @@ export const getCapabilitiesForRoles = cache(async (organizationId: string, role
   )();
 
   return new Set(caps);
-});
+}
