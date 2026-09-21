@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { randomToken } from "./tokens";
@@ -63,6 +64,14 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     status: user.status,
   };
 }
+
+// RSC-only per-request dedup: layout.tsx and the page it wraps both call
+// getSessionUser once per render, so wrap it in React.cache HERE - never
+// export this from the plain function above, since that one is also called
+// from Route Handlers (requireCapability.ts), which run outside the React
+// Server Component tree where React.cache isn't valid (see the note above).
+// Only import getSessionUserCached from layout.tsx/page.tsx files.
+export const getSessionUserCached = cache(getSessionUser);
 
 export async function destroySession(): Promise<void> {
   const id = cookies().get(COOKIE_NAME)?.value;

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 
@@ -37,3 +38,8 @@ export async function getCapabilitiesForRoles(organizationId: string, roles: str
 
   return new Set(caps);
 }
+
+// RSC-only per-request dedup - same reasoning as getSessionUserCached in
+// session.ts: only import this from layout.tsx/page.tsx, never from a Route
+// Handler (React.cache isn't valid outside the React Server Component tree).
+export const getCapabilitiesForRolesCached = cache(getCapabilitiesForRoles);

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/auth/session";
-import { getCapabilitiesForRoles } from "@/lib/auth/capabilities";
+import { getSessionUserCached } from "@/lib/auth/session";
+import { getCapabilitiesForRolesCached } from "@/lib/auth/capabilities";
 import { findNodeLabelForScope } from "@/lib/auth/scopeLabel";
 import { getOrgName } from "@/lib/auth/org";
 import { Sidebar } from "@/components/Sidebar";
@@ -13,11 +13,11 @@ import { ActionToastHost } from "@/components/ActionToast";
 // without this running first, and nothing here can be skipped by disabling
 // JS or editing client state.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const user = await getSessionUser();
+  const user = await getSessionUserCached();
   if (!user) redirect("/login");
 
   const [capabilities, orgName, scopeLabel] = await Promise.all([
-    getCapabilitiesForRoles(user.organizationId, user.roles),
+    getCapabilitiesForRolesCached(user.organizationId, user.roles),
     getOrgName(user.organizationId),
     user.scope ? findNodeLabelForScope(user.scope) : Promise.resolve(null),
   ]);

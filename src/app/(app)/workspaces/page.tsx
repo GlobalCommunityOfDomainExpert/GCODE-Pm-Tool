@@ -1,5 +1,5 @@
 import { getAllWorkspaces, scopeFilterWorkspaces, toCardItem, toTreeNode } from "@/lib/tree";
-import { getSessionUser } from "@/lib/auth/session";
+import { getSessionUserCached } from "@/lib/auth/session";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PageHeader } from "@/components/PageHeader";
 import { HierarchyLevelClient } from "@/components/HierarchyLevelClient";
@@ -7,7 +7,7 @@ import { HierarchyLevelClient } from "@/components/HierarchyLevelClient";
 export const dynamic = "force-dynamic";
 
 export default async function WorkspacesPage() {
-  const user = (await getSessionUser())!; // (app)/layout.tsx already guarantees a session here
+  const user = (await getSessionUserCached())!; // (app)/layout.tsx already guarantees a session here
   const allWorkspaces = await getAllWorkspaces(user.organizationId);
   const workspaces = await scopeFilterWorkspaces(allWorkspaces, user.scope);
 
