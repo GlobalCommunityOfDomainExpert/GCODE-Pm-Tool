@@ -6,6 +6,7 @@ import type { ScopeNode, ScopeOption, TeamUser } from "./types";
 import { EditUserModal } from "./EditUserModal";
 import { reportIfActionFailed, showActionNotice } from "../ActionToast";
 import { Spinner } from "../Spinner";
+import { Skeleton } from "../Skeleton";
 
 const SOURCE_LABEL: Record<TeamUser["source"], { text: string; color: string }> = {
   "org-founder": { text: "Org Founder", color: "text-purple-600" },
@@ -34,6 +35,7 @@ export function DirectoryTab({
   onRoleFilterChange,
   allRoles,
   loading,
+  initialLoad,
   onChanged,
 }: {
   users: TeamUser[];
@@ -46,6 +48,7 @@ export function DirectoryTab({
   onRoleFilterChange: (v: string) => void;
   allRoles: string[];
   loading: boolean;
+  initialLoad?: boolean;
   onChanged: () => void;
 }) {
   const [menuFor, setMenuFor] = useState<string | null>(null);
@@ -120,7 +123,19 @@ export function DirectoryTab({
         {loading && <Spinner className="h-4 w-4 shrink-0 text-text-secondary" />}
       </div>
 
-      {users.length === 0 ? (
+      {initialLoad ? (
+        <div className="space-y-2 p-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 rounded-sm border border-border p-3">
+              <Skeleton className="h-8 w-8 rounded-full" />
+              <Skeleton className="h-4 w-1/3" />
+              <Skeleton className="h-4 w-1/6" />
+              <Skeleton className="h-4 w-1/6" />
+              <Skeleton className="ml-auto h-4 w-16" />
+            </div>
+          ))}
+        </div>
+      ) : users.length === 0 ? (
         <div className="p-12 text-center text-[13px] text-text-secondary">No teammates match this search.</div>
       ) : (
         <table className="w-full border-collapse text-left">

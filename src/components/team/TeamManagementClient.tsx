@@ -22,6 +22,7 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [initialUsersLoad, setInitialUsersLoad] = useState(true);
 
   const loadUsers = useCallback(async () => {
     setUsersLoading(true);
@@ -33,6 +34,7 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
       if (res.ok) setUsers(await res.json());
     } finally {
       setUsersLoading(false);
+      setInitialUsersLoad(false);
     }
   }, [search, roleFilter]);
 
@@ -117,6 +119,7 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
           onRoleFilterChange={setRoleFilter}
           allRoles={allRoles}
           loading={usersLoading}
+          initialLoad={initialUsersLoad}
           onChanged={loadUsers}
         />
       )}

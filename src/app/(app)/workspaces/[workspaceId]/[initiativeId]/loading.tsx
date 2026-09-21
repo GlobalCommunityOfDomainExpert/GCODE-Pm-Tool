@@ -1,5 +1,5 @@
 import { CardGridSkeleton } from "@/components/Skeleton";
 
 export default function Loading() {
-  return <CardGridSkeleton />;
+  return <CardGridSkeleton breadcrumbs={3} />;
 }

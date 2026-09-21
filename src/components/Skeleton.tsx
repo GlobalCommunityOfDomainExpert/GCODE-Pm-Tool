@@ -2,9 +2,31 @@ export function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`animate-pulse rounded bg-slate-200 ${className}`} />;
 }
 
-export function CardGridSkeleton({ count = 6 }: { count?: number }) {
+// Mirrors Breadcrumbs' own layout (mb-6 flex items-center text-sm, a chevron
+// between each crumb) so the route's loading.tsx reserves the same height
+// instead of leaving that area blank until the real crumbs pop in and shove
+// everything below it down.
+export function BreadcrumbSkeleton({ count = 2 }: { count?: number }) {
+  return (
+    <div className="mb-6 flex items-center gap-2">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <Skeleton className={`h-3.5 ${i === count - 1 ? "w-28" : "w-20"}`} />
+          {i < count - 1 && <Skeleton className="h-3 w-3 rounded-sm" />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function CardGridSkeleton({ count = 6, breadcrumbs = 2, subtitle = true }: { count?: number; breadcrumbs?: number; subtitle?: boolean }) {
   return (
     <div>
+      <BreadcrumbSkeleton count={breadcrumbs} />
+      <div className="mb-4">
+        <Skeleton className="mb-2 h-8 w-56" />
+        {subtitle && <Skeleton className="h-4 w-80" />}
+      </div>
       <div className="mb-6 flex items-center justify-between">
         <Skeleton className="h-9 w-40" />
         <Skeleton className="h-9 w-36" />
@@ -34,12 +56,16 @@ export function CardGridSkeleton({ count = 6 }: { count?: number }) {
   );
 }
 
-export function KanbanSkeleton({ columns = 4 }: { columns?: number }) {
+export function KanbanSkeleton({ columns = 4, breadcrumbs = 5 }: { columns?: number; breadcrumbs?: number }) {
   return (
     <div>
+      <BreadcrumbSkeleton count={breadcrumbs} />
+      <div className="mb-4">
+        <Skeleton className="mb-2 h-8 w-56" />
+        <Skeleton className="h-4 w-80" />
+      </div>
       <div className="mb-6 flex items-center justify-between">
         <Skeleton className="h-9 w-40" />
-        <Skeleton className="h-9 w-32" />
       </div>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-4">
         {Array.from({ length: columns }).map((_, i) => (
