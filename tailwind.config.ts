@@ -18,7 +18,8 @@ const config: Config = {
         info: "#3b82f6",
       },
       fontFamily: {
-        sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
+        // --font-inter is set by next/font/google in src/app/layout.tsx.
+        sans: ["var(--font-inter)", "system-ui", "-apple-system", "sans-serif"],
       },
       borderRadius: { sm: "6px", md: "8px", lg: "12px" },
       boxShadow: {
