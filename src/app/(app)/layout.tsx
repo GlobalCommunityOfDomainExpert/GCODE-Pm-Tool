@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth/session";
 import { getCapabilitiesForRoles } from "@/lib/auth/capabilities";
 import { findNodeLabelForScope } from "@/lib/auth/scopeLabel";
-import { prisma } from "@/lib/prisma";
+import { getOrgName } from "@/lib/auth/org";
 import { Sidebar } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
 import { ActionToastHost } from "@/components/ActionToast";
@@ -16,9 +16,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await getSessionUser();
   if (!user) redirect("/login");
 
-  const [capabilities, organization, scopeLabel] = await Promise.all([
+  const [capabilities, orgName, scopeLabel] = await Promise.all([
     getCapabilitiesForRoles(user.organizationId, user.roles),
-    prisma.organization.findUnique({ where: { id: user.organizationId }, select: { name: true } }),
+    getOrgName(user.organizationId),
     user.scope ? findNodeLabelForScope(user.scope) : Promise.resolve(null),
   ]);
 
@@ -26,7 +26,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     <div className="flex h-screen w-screen overflow-hidden">
       <Sidebar canManageTeam={capabilities.has("Manage Team Members")} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Header userName={user.name} orgName={organization?.name || ""} roles={user.roles} scopeLabel={scopeLabel} />
+        <Header userName={user.name} orgName={orgName} roles={user.roles} scopeLabel={scopeLabel} />
         <main className="flex-1 overflow-y-auto overflow-x-hidden bg-app p-6">
           <div className="mx-auto w-full max-w-content">{children}</div>
         </main>

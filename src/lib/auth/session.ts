@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { randomToken } from "./tokens";
@@ -36,7 +37,9 @@ export async function createSession(userId: string): Promise<void> {
 // Safe to call from Server Components (read-only) and Route Handlers alike.
 // Resolves the caller's role/scope from the DB every time - this is the only
 // place in the app that's allowed to answer "who is this request from."
-export async function getSessionUser(): Promise<SessionUser | null> {
+// Wrapped in React.cache so the layout and the page it wraps - which both
+// call this per request - share one DB round trip instead of two.
+export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const id = cookies().get(COOKIE_NAME)?.value;
   if (!id) return null;
 
@@ -57,7 +60,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
     scope: user.scope,
     status: user.status,
   };
-}
+});
 
 export async function destroySession(): Promise<void> {
   const id = cookies().get(COOKIE_NAME)?.value;
