@@ -31,6 +31,12 @@ model Workspace {
   organizationId String?
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   name           String
+  // URL segment, auto-derived from name on every create/update (src/lib/slug.ts)
+  // - never user-edited directly. Unique per org, not globally: Postgres
+  // treats NULL organizationId as distinct per row, so legacy orphaned
+  // workspaces (see the comment above this model) can't collide on slug
+  // even though they share a null org.
+  slug           String
   description    String?
   status         String?
   // Client logo, stored as a base64 data URL directly on the row (no
@@ -41,6 +47,8 @@ model Workspace {
   accountable    User?         @relation("WorkspaceAccountable", fields: [accountableId], references: [id], onDelete: SetNull)
   createdAt      DateTime      @default(now())
   initiatives    Initiative[]
+
+  @@unique([organizationId, slug])
 }
 
 model Initiative {
@@ -48,12 +56,15 @@ model Initiative {
   workspaceId   String
   workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   name          String
+  slug          String
   description   String?
   status        String?
   accountableId String?
   accountable   User?     @relation("InitiativeAccountable", fields: [accountableId], references: [id], onDelete: SetNull)
   createdAt     DateTime  @default(now())
   programs      Program[]
+
+  @@unique([workspaceId, slug])
 }
 
 model Program {
@@ -61,12 +72,15 @@ model Program {
   initiativeId  String
   initiative    Initiative @relation(fields: [initiativeId], references: [id], onDelete: Cascade)
   name          String
+  slug          String
   description   String?
   status        String?
   accountableId String?
   accountable   User?      @relation("ProgramAccountable", fields: [accountableId], references: [id], onDelete: SetNull)
   createdAt     DateTime   @default(now())
   projects      Project[]
+
+  @@unique([initiativeId, slug])
 }
 
 model Project {
@@ -74,12 +88,15 @@ model Project {
   programId     String
   program       Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
   name          String
+  slug          String
   description   String?
   status        String?
   accountableId String?
   accountable   User?    @relation("ProjectAccountable", fields: [accountableId], references: [id], onDelete: SetNull)
   createdAt     DateTime @default(now())
   tasks         Task[]
+
+  @@unique([programId, slug])
 }
 
 model Task {

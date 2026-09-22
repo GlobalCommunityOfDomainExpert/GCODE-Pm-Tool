@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { slugify } from "../src/lib/slug";
 
 const prisma = new PrismaClient();
 
@@ -301,22 +302,26 @@ async function main() {
   await prisma.workspace.create({
     data: {
       name: "GCODE",
+      slug: slugify("GCODE"),
       description: "Portfolio of Platform Development, Event Management, and Operations work.",
       status: "In Progress",
       accountableId: people.get("Arup"),
       initiatives: {
         create: DATA.map((init) => ({
           name: init.name,
+          slug: slugify(init.name),
           status: "In Progress",
           accountableId: people.get(init.accountable),
           programs: {
             create: init.programs.map((prog) => ({
               name: prog.name,
+              slug: slugify(prog.name),
               status: "In Progress",
               accountableId: people.get(prog.accountable),
               projects: {
                 create: prog.projects.map((proj) => ({
                   name: proj.name,
+                  slug: slugify(proj.name),
                   status: "In Progress",
                   accountableId: people.get(proj.accountable),
                   tasks: {

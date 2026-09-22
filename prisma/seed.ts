@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { slugify } from "../src/lib/slug";
 
 const prisma = new PrismaClient();
 
@@ -19,6 +20,7 @@ async function main() {
   const platform = await prisma.workspace.create({
     data: {
       name: "Product Platform",
+      slug: slugify("Product Platform"),
       description: "Core platform investments for the product org.",
       status: "On Track",
       accountableId: alex.id,
@@ -26,6 +28,7 @@ async function main() {
         create: [
           {
             name: "Customer Onboarding Revamp",
+            slug: slugify("Customer Onboarding Revamp"),
             description: "Reduce time-to-value for new signups.",
             status: "In Progress",
             accountableId: jordan.id,
@@ -33,6 +36,7 @@ async function main() {
               create: [
                 {
                   name: "Self-serve Signup",
+                  slug: slugify("Self-serve Signup"),
                   description: "Let customers activate without sales.",
                   status: "On Track",
                   accountableId: priya.id,
@@ -40,6 +44,7 @@ async function main() {
                     create: [
                       {
                         name: "Onboarding Wizard",
+                        slug: slugify("Onboarding Wizard"),
                         description: "Multi-step signup wizard with progress saves.",
                         status: "In Progress",
                         accountableId: priya.id,
@@ -68,6 +73,7 @@ async function main() {
   await prisma.workspace.create({
     data: {
       name: "Growth & Marketing",
+      slug: slugify("Growth & Marketing"),
       description: "Campaigns and lifecycle experiments.",
       status: "At Risk",
       accountableId: jordan.id,
@@ -75,18 +81,21 @@ async function main() {
         create: [
           {
             name: "Q3 Acquisition Push",
+            slug: slugify("Q3 Acquisition Push"),
             status: "In Progress",
             accountableId: morgan.id,
             programs: {
               create: [
                 {
                   name: "Paid Channels",
+                  slug: slugify("Paid Channels"),
                   status: "At Risk",
                   accountableId: morgan.id,
                   projects: {
                     create: [
                       {
                         name: "Search Ads Refresh",
+                        slug: slugify("Search Ads Refresh"),
                         status: "To Do",
                         accountableId: morgan.id,
                         tasks: {
