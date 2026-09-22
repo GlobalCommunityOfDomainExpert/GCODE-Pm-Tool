@@ -252,8 +252,8 @@ export function toTaskItem(t: {
   priority: string;
   responsible: { id: string; name: string; email: string | null } | null;
   description: string | null;
-  startDate: Date | null;
-  dueDate: Date | null;
+  startDate: Date | string | null;
+  dueDate: Date | string | null;
 }): TaskItem {
   return {
     id: t.id,
@@ -262,7 +262,14 @@ export function toTaskItem(t: {
     priority: t.priority,
     responsible: toAssignee(t.responsible),
     description: t.description,
-    startDate: t.startDate ? t.startDate.toISOString().slice(0, 10) : null,
-    dueDate: t.dueDate ? t.dueDate.toISOString().slice(0, 10) : null,
+    // t comes from getWorkspaceTree/getAllWorkspaces, which are wrapped in
+    // unstable_cache - on a cache hit, Next round-trips the cached value
+    // through JSON, so Date fields come back as plain ISO strings instead
+    // of Date instances (only a cache MISS hands back real Dates straight
+    // from Prisma). new Date(...) normalizes either shape before calling
+    // a Date-only method - matches the pattern toTreeNode already used
+    // correctly for its own dueDate a few lines up.
+    startDate: t.startDate ? new Date(t.startDate).toISOString().slice(0, 10) : null,
+    dueDate: t.dueDate ? new Date(t.dueDate).toISOString().slice(0, 10) : null,
   };
 }
