@@ -31,7 +31,7 @@ export default async function ProjectsPage({
           { label: program.name, href: basePath },
         ]}
       />
-      <PageHeader title={program.name} description={program.description} />
+      <PageHeader title={program.name} description={program.description} logoData={workspace.logoData} />
       <HierarchyLevelClient
         items={program.projects.map(toCardItem)}
         treeItems={program.projects.map((p) => toTreeNode(p, "project"))}

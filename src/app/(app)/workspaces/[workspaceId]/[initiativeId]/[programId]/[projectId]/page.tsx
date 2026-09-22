@@ -31,7 +31,7 @@ export default async function TaskBoardPage({
           { label: project.name, href: `/workspaces/${workspace.id}/${initiative.id}/${program.id}/${project.id}` },
         ]}
       />
-      <PageHeader title={project.name} description={project.description} />
+      <PageHeader title={project.name} description={project.description} logoData={workspace.logoData} />
       <TaskKanbanBoard projectId={project.id} initialTasks={project.tasks.map(toTaskItem)} />
     </div>
   );

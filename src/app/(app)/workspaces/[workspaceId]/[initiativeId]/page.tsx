@@ -29,7 +29,7 @@ export default async function ProgramsPage({
           { label: initiative.name, href: basePath },
         ]}
       />
-      <PageHeader title={initiative.name} description={initiative.description} />
+      <PageHeader title={initiative.name} description={initiative.description} logoData={workspace.logoData} />
       <HierarchyLevelClient
         items={initiative.programs.map(toCardItem)}
         treeItems={initiative.programs.map((p) => toTreeNode(p, "program"))}
