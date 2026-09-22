@@ -12,6 +12,7 @@ import { reportIfActionFailed } from "./ActionToast";
 
 type SavedRow = {
   id: string;
+  slug: string;
   name: string;
   description: string | null;
   status: string | null;
@@ -22,6 +23,7 @@ type SavedRow = {
 function toCardItem(row: SavedRow): HierarchyCardItem {
   return {
     id: row.id,
+    slug: row.slug,
     name: row.name,
     description: row.description ?? null,
     status: row.status ?? null,
@@ -37,6 +39,7 @@ function toCardItem(row: SavedRow): HierarchyCardItem {
 function toTreeNode(row: SavedRow, level: HierarchyLevel): TreeNode {
   return {
     id: row.id,
+    slug: row.slug,
     level,
     name: row.name,
     status: row.status ?? null,
@@ -98,11 +101,21 @@ export function HierarchyLevelClient({
     setItems((prev) =>
       prev.map((it) =>
         it.id === row.id
-          ? { ...it, name: row.name, description: row.description, status: row.status, accountable: row.accountable, logoData: row.logoData ?? null }
+          ? {
+              ...it,
+              slug: row.slug,
+              name: row.name,
+              description: row.description,
+              status: row.status,
+              accountable: row.accountable,
+              logoData: row.logoData ?? null,
+            }
           : it
       )
     );
-    setTreeItems((prev) => (prev.map((n) => (n.id === row.id ? { ...n, name: row.name, status: row.status, accountable: row.accountable } : n))));
+    setTreeItems((prev) =>
+      prev.map((n) => (n.id === row.id ? { ...n, slug: row.slug, name: row.name, status: row.status, accountable: row.accountable } : n))
+    );
   }
 
   async function handleItemDeleted(item: HierarchyCardItem) {

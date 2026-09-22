@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { withCapability, ApiError } from "@/lib/auth/requireCapability";
 import { isNodeWithinScopeSubtree, assertAssigneeAllowed } from "@/lib/auth/scope";
 import { assertNodeInOrg } from "@/lib/auth/org";
+import { slugify, uniqueSlug } from "@/lib/slug";
 
 export const PATCH = withCapability("Create/Edit Projects", async (req, { params }: { params: { id: string } }, user) => {
   await assertNodeInOrg("project", params.id, user.organizationId);
@@ -17,7 +18,14 @@ export const PATCH = withCapability("Create/Edit Projects", async (req, { params
   }
 
   const data: Record<string, unknown> = {};
-  if ("name" in body) data.name = body.name;
+  if ("name" in body) {
+    data.name = body.name;
+    const current = await prisma.project.findUniqueOrThrow({ where: { id: params.id }, select: { programId: true } });
+    data.slug = await uniqueSlug(
+      slugify(body.name),
+      async (candidate) => (await prisma.project.count({ where: { programId: current.programId, slug: candidate, NOT: { id: params.id } } })) > 0
+    );
+  }
   if ("description" in body) data.description = body.description || null;
   if ("accountableId" in body) data.accountableId = body.accountableId || null;
   if ("status" in body) data.status = body.status;

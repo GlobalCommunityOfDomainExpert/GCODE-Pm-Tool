@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { withCapability, withSession, ApiError } from "@/lib/auth/requireCapability";
 import { isNodeWithinScopeSubtree, assertAssigneeAllowed } from "@/lib/auth/scope";
 import { assertNodeInOrg } from "@/lib/auth/org";
+import { slugify, uniqueSlug } from "@/lib/slug";
 
 const ACCOUNTABLE_SELECT = { select: { id: true, name: true, email: true } } as const;
 
@@ -29,8 +30,14 @@ export const POST = withCapability("Create/Edit Projects", async (req, _ctx, use
   }
   await assertAssigneeAllowed(user.organizationId, "initiative", body.initiativeId, body.accountableId);
 
+  const name = body.name || "Untitled Program";
+  const slug = await uniqueSlug(
+    slugify(name),
+    async (candidate) => (await prisma.program.count({ where: { initiativeId: body.initiativeId, slug: candidate } })) > 0
+  );
+
   const program = await prisma.program.create({
-    data: { initiativeId: body.initiativeId, name: body.name || "Untitled Program", description: body.description || null, accountableId: body.accountableId || null },
+    data: { initiativeId: body.initiativeId, name, slug, description: body.description || null, accountableId: body.accountableId || null },
     include: { accountable: ACCOUNTABLE_SELECT },
   });
   revalidateTag(`tree:${user.organizationId}`);

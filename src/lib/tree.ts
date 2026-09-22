@@ -43,17 +43,17 @@ const DEEP_INCLUDE = {
 // so the wrapper is created fresh inside each exported function (the
 // standard pattern for a per-argument cache tag) rather than once at module
 // scope.
-export async function getWorkspaceTree(workspaceId: string, organizationId: string) {
+export async function getWorkspaceTree(workspaceSlug: string, organizationId: string) {
   return unstable_cache(
     async () =>
       prisma.workspace.findFirst({
-        where: { id: workspaceId, organizationId },
+        where: { slug: workspaceSlug, organizationId },
         include: {
           accountable: ASSIGNEE_SELECT,
           initiatives: { include: DEEP_INCLUDE },
         },
       }),
-    [`tree:getWorkspaceTree:${workspaceId}:${organizationId}`],
+    [`tree:getWorkspaceTree:${workspaceSlug}:${organizationId}`],
     { tags: [`tree:${organizationId}`], revalidate: 300 }
   )();
 }
@@ -110,6 +110,7 @@ function toAssignee(p: { id: string; name: string; email: string | null } | null
 
 export function toCardItem(node: {
   id: string;
+  slug: string;
   name: string;
   description: string | null;
   status: string | null;
@@ -123,6 +124,7 @@ export function toCardItem(node: {
   const { total, done, progress } = progressOf(node);
   return {
     id: node.id,
+    slug: node.slug,
     name: node.name,
     description: node.description,
     status: node.status,
@@ -142,6 +144,7 @@ export function toCardItem(node: {
 // (extra fields like description/createdAt are simply ignored here).
 type TreeSourceNode = {
   id: string;
+  slug?: string; // absent for a task - Task has no slug column, no route of its own
   name?: string | null;
   title?: string | null;
   status?: string | null;
@@ -234,6 +237,7 @@ export function toTreeNode(node: TreeSourceNode, level: HierarchyLevel): TreeNod
 
   return {
     id: node.id,
+    slug: node.slug ?? "",
     level,
     name: (isTask ? node.title : node.name) || "",
     status: node.status ?? null,

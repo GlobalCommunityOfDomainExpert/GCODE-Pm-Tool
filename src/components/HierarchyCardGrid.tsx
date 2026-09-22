@@ -121,7 +121,7 @@ export function HierarchyCardGrid({
             )}
           </div>
 
-          <Link href={`${basePath}/${item.id}`} className="flex h-full flex-col">
+          <Link href={`${basePath}/${item.slug}`} className="flex h-full flex-col">
             <div className="mb-4 flex items-start justify-between pr-8">
               {item.logoData ? (
                 // Fixed height, width follows the logo's own aspect ratio (capped)

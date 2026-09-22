@@ -42,7 +42,7 @@ function TreeRow({
   expanded: Set<string>;
   onToggle: (id: string) => void;
 }) {
-  const rowPath = `${basePath}/${node.id}`;
+  const rowPath = `${basePath}/${node.slug}`;
   const hasChildren = node.children.length > 0;
   const isExpanded = expanded.has(node.id);
   const isTask = node.level === "task";

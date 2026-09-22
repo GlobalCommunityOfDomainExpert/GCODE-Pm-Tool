@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withCapability, withSession } from "@/lib/auth/requireCapability";
 import { assertAssigneeAllowed } from "@/lib/auth/scope";
+import { slugify, uniqueSlug } from "@/lib/slug";
 
 const ACCOUNTABLE_SELECT = { select: { id: true, name: true, email: true } } as const;
 
@@ -34,10 +35,17 @@ export const POST = withCapability("Create/Edit Workspaces", async (req, _ctx, u
     return NextResponse.json({ error: "That logo image couldn't be saved - please try a smaller image." }, { status: 400 });
   }
 
+  const name = body.name || "Untitled Workspace";
+  const slug = await uniqueSlug(
+    slugify(name),
+    async (candidate) => (await prisma.workspace.count({ where: { organizationId: user.organizationId, slug: candidate } })) > 0
+  );
+
   const workspace = await prisma.workspace.create({
     data: {
       organizationId: user.organizationId,
-      name: body.name || "Untitled Workspace",
+      name,
+      slug,
       description: body.description || null,
       accountableId: body.accountableId || null,
       logoData: body.logoData || null,

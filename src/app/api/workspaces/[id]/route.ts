@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { withCapability, ApiError } from "@/lib/auth/requireCapability";
 import { isNodeWithinScopeSubtree, assertAssigneeAllowed } from "@/lib/auth/scope";
 import { assertNodeInOrg } from "@/lib/auth/org";
+import { slugify, uniqueSlug } from "@/lib/slug";
 
 // Mirrors the same check in ../route.ts (POST) - keep the two in sync if
 // this ever changes.
@@ -27,7 +28,17 @@ export const PATCH = withCapability("Create/Edit Workspaces", async (req, { para
   }
 
   const data: Record<string, unknown> = {};
-  if ("name" in body) data.name = body.name;
+  if ("name" in body) {
+    data.name = body.name;
+    // Slug follows the name - regenerated on every rename (old links to
+    // this workspace stop resolving; that's the accepted tradeoff for
+    // always-readable URLs, see the slug feature's design discussion).
+    data.slug = await uniqueSlug(
+      slugify(body.name),
+      async (candidate) =>
+        (await prisma.workspace.count({ where: { organizationId: user.organizationId, slug: candidate, NOT: { id: params.id } } })) > 0
+    );
+  }
   if ("description" in body) data.description = body.description || null;
   if ("accountableId" in body) data.accountableId = body.accountableId || null;
   if ("logoData" in body) data.logoData = body.logoData || null;

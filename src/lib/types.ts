@@ -23,6 +23,10 @@ export interface Assignee {
 
 export interface HierarchyCardItem {
   id: string;
+  // URL segment (auto-derived from name, src/lib/slug.ts) - `id` stays the
+  // key for API calls/React keys, `slug` is what Link hrefs are built from.
+  // Empty string for a task (no dedicated route, never linked to directly).
+  slug: string;
   name: string;
   description: string | null;
   status: string | null;
@@ -57,6 +61,9 @@ export interface Breadcrumb {
 // tree table can expand/collapse arbitrarily deep in one client component.
 export interface TreeNode {
   id: string;
+  // Empty string for a task row - tasks have no dedicated route/slug column,
+  // HierarchyTreeTable only makes container rows clickable (see isTask there).
+  slug: string;
   level: HierarchyLevel;
   name: string;
   status: string | null;

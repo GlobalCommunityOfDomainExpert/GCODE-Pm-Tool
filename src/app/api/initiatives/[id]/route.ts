@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { withCapability, ApiError } from "@/lib/auth/requireCapability";
 import { isNodeWithinScopeSubtree, assertAssigneeAllowed } from "@/lib/auth/scope";
 import { assertNodeInOrg } from "@/lib/auth/org";
+import { slugify, uniqueSlug } from "@/lib/slug";
 
 export const PATCH = withCapability("Create/Edit Workspaces", async (req, { params }: { params: { id: string } }, user) => {
   await assertNodeInOrg("initiative", params.id, user.organizationId);
@@ -17,7 +18,15 @@ export const PATCH = withCapability("Create/Edit Workspaces", async (req, { para
   }
 
   const data: Record<string, unknown> = {};
-  if ("name" in body) data.name = body.name;
+  if ("name" in body) {
+    data.name = body.name;
+    const current = await prisma.initiative.findUniqueOrThrow({ where: { id: params.id }, select: { workspaceId: true } });
+    data.slug = await uniqueSlug(
+      slugify(body.name),
+      async (candidate) =>
+        (await prisma.initiative.count({ where: { workspaceId: current.workspaceId, slug: candidate, NOT: { id: params.id } } })) > 0
+    );
+  }
   if ("description" in body) data.description = body.description || null;
   if ("accountableId" in body) data.accountableId = body.accountableId || null;
 
