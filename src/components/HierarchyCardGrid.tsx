@@ -124,8 +124,13 @@ export function HierarchyCardGrid({
           <Link href={`${basePath}/${item.id}`} className="flex h-full flex-col">
             <div className="mb-4 flex items-start justify-between pr-8">
               {item.logoData ? (
-                // eslint-disable-next-line @next/next/no-img-element -- base64 data URL, not a static asset next/image can optimize
-                <img src={item.logoData} alt="" className="h-10 w-10 rounded-md border border-border object-cover" />
+                // Fixed height, width follows the logo's own aspect ratio (capped)
+                // instead of cropping into a square - a wide wordmark logo and a
+                // square icon logo both end up the same height, neither gets cut.
+                <div className="flex h-10 max-w-[140px] items-center justify-center overflow-hidden rounded-md border border-border bg-white p-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- base64 data URL, not a static asset next/image can optimize */}
+                  <img src={item.logoData} alt="" className="h-full w-full object-contain" />
+                </div>
               ) : (
                 <div className={`flex h-10 w-10 items-center justify-center rounded-md text-lg ${icon.bg} ${icon.fg}`}>
                   <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2}>

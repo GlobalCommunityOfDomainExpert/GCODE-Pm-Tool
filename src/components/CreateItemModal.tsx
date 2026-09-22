@@ -240,8 +240,13 @@ export function CreateItemModal({
           <Field label="Client Logo (optional)" span2>
             <div className="flex items-center gap-3">
               {logoData ? (
-                // eslint-disable-next-line @next/next/no-img-element -- base64 data URL, not a static asset next/image can optimize
-                <img src={logoData} alt="" className="h-12 w-12 shrink-0 rounded-md border border-border object-cover" />
+                // Fixed height, width follows the logo's own aspect ratio
+                // (capped) - matches how it'll actually render on the card
+                // grid and page title, so this preview isn't misleading.
+                <div className="flex h-12 max-w-[180px] shrink-0 items-center justify-center overflow-hidden rounded-md border border-border bg-white p-1">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- base64 data URL, not a static asset next/image can optimize */}
+                  <img src={logoData} alt="" className="h-full w-full object-contain" />
+                </div>
               ) : (
                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-dashed border-border text-text-secondary">
                   <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2}>
