@@ -21,7 +21,7 @@ export default async function InitiativesPage({ params }: { params: { workspaceI
           { label: workspace.name, href: `/workspaces/${workspace.id}` },
         ]}
       />
-      <PageHeader title={workspace.name} description={workspace.description} />
+      <PageHeader title={workspace.name} description={workspace.description} logoData={workspace.logoData} />
       <HierarchyLevelClient
         items={workspace.initiatives.map(toCardItem)}
         treeItems={workspace.initiatives.map((i) => toTreeNode(i, "initiative"))}

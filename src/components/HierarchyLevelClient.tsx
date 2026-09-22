@@ -16,6 +16,7 @@ type SavedRow = {
   description: string | null;
   status: string | null;
   accountable: Assignee | null;
+  logoData?: string | null;
 };
 
 function toCardItem(row: SavedRow): HierarchyCardItem {
@@ -25,6 +26,7 @@ function toCardItem(row: SavedRow): HierarchyCardItem {
     description: row.description ?? null,
     status: row.status ?? null,
     accountable: row.accountable ?? null,
+    logoData: row.logoData ?? null,
     childCount: 0,
     progress: 0,
     done: 0,
@@ -94,7 +96,11 @@ export function HierarchyLevelClient({
     if (!saved) return;
     const row = saved as unknown as SavedRow;
     setItems((prev) =>
-      prev.map((it) => (it.id === row.id ? { ...it, name: row.name, description: row.description, status: row.status, accountable: row.accountable } : it))
+      prev.map((it) =>
+        it.id === row.id
+          ? { ...it, name: row.name, description: row.description, status: row.status, accountable: row.accountable, logoData: row.logoData ?? null }
+          : it
+      )
     );
     setTreeItems((prev) => (prev.map((n) => (n.id === row.id ? { ...n, name: row.name, status: row.status, accountable: row.accountable } : n))));
   }

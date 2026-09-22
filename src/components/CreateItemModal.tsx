@@ -24,6 +24,11 @@ const INPUT_CLASS =
 
 const CONTAINER_LEVELS: HierarchyLevel[] = ["workspace", "initiative", "program", "project"];
 
+// Base64-in-the-row storage (no separate storage service - see
+// prisma/schema.prisma's Workspace.logoData comment), so cap the raw file
+// size client-side before it ever hits the request body.
+const MAX_LOGO_BYTES = 400 * 1024;
+
 const PARENT_FIELD: Record<HierarchyLevel, string | null> = {
   workspace: null,
   initiative: "workspaceId",
@@ -74,7 +79,28 @@ export function CreateItemModal({
   const [priority, setPriority] = useState(editTask?.priority || TASK_PRIORITIES[1]);
   const [startDate, setStartDate] = useState(editTask?.startDate || "");
   const [dueDate, setDueDate] = useState(editTask?.dueDate || "");
+  const [logoData, setLogoData] = useState<string | null>(editItem?.logoData || null);
+  const [logoError, setLogoError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // lets the same file be re-picked later (e.g. after Remove)
+    if (!file) return;
+    setLogoError(null);
+    if (!file.type.startsWith("image/")) {
+      setLogoError("Please choose an image file.");
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setLogoError("Image is too large - please use one under 400KB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => setLogoData(reader.result as string);
+    reader.onerror = () => setLogoError("Couldn't read that file - please try again.");
+    reader.readAsDataURL(file);
+  }
 
   const isContainer = CONTAINER_LEVELS.includes(level);
   const label = LEVEL_LABEL[level];
@@ -107,6 +133,7 @@ export function CreateItemModal({
           accountableId: accountable?.id || null,
         };
         if (level === "project") body.status = status;
+        if (level === "workspace") body.logoData = logoData;
 
         res = await fetch(`${ENDPOINT[level]}/${editItem.id}`, {
           method: "PATCH",
@@ -123,6 +150,7 @@ export function CreateItemModal({
           body.description = description || null;
           body.accountableId = accountable?.id || null;
           if (level === "project") body.status = status;
+          if (level === "workspace") body.logoData = logoData;
         } else {
           body.title = name;
           body.description = description || null;
@@ -207,6 +235,35 @@ export function CreateItemModal({
             className={`${INPUT_CLASS} resize-y`}
           />
         </Field>
+
+        {level === "workspace" && (
+          <Field label="Client Logo (optional)" span2>
+            <div className="flex items-center gap-3">
+              {logoData ? (
+                // eslint-disable-next-line @next/next/no-img-element -- base64 data URL, not a static asset next/image can optimize
+                <img src={logoData} alt="" className="h-12 w-12 shrink-0 rounded-md border border-border object-cover" />
+              ) : (
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-dashed border-border text-text-secondary">
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d={LEVEL_ICON_PATH.workspace} />
+                  </svg>
+                </div>
+              )}
+              <div className="flex flex-col items-start gap-1">
+                <label className="cursor-pointer rounded-sm border border-border px-3 py-1.5 text-[12px] font-medium text-text-secondary hover:bg-slate-100">
+                  {logoData ? "Replace" : "Upload"}
+                  <input type="file" accept="image/*" onChange={handleLogoChange} className="hidden" />
+                </label>
+                {logoData && (
+                  <button type="button" onClick={() => setLogoData(null)} className="text-[12px] text-danger hover:underline">
+                    Remove
+                  </button>
+                )}
+              </div>
+            </div>
+            {logoError && <p className="mt-1.5 text-[12px] text-danger">{logoError}</p>}
+          </Field>
+        )}
 
         {isContainer && (
           <Field label="Accountable" span2={level !== "project"}>

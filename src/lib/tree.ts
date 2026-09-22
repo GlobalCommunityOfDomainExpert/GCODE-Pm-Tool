@@ -114,6 +114,7 @@ export function toCardItem(node: {
   description: string | null;
   status: string | null;
   accountable: { id: string; name: string; email: string | null } | null;
+  logoData?: string | null;
   initiatives?: unknown[];
   programs?: unknown[];
   projects?: unknown[];
@@ -126,6 +127,7 @@ export function toCardItem(node: {
     description: node.description,
     status: node.status,
     accountable: toAssignee(node.accountable),
+    logoData: node.logoData ?? null,
     childCount: childCountOf(node),
     progress,
     done,

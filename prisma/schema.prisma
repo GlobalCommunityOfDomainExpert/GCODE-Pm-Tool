@@ -33,6 +33,10 @@ model Workspace {
   name           String
   description    String?
   status         String?
+  // Client logo, stored as a base64 data URL directly on the row (no
+  // separate storage service) - a Workspace here is a client, one logo
+  // each, small images, low volume: not worth a Blob/Storage integration.
+  logoData       String?
   accountableId  String?
   accountable    User?         @relation("WorkspaceAccountable", fields: [accountableId], references: [id], onDelete: SetNull)
   createdAt      DateTime      @default(now())

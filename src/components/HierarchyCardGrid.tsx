@@ -123,11 +123,16 @@ export function HierarchyCardGrid({
 
           <Link href={`${basePath}/${item.id}`} className="flex h-full flex-col">
             <div className="mb-4 flex items-start justify-between pr-8">
-              <div className={`flex h-10 w-10 items-center justify-center rounded-md text-lg ${icon.bg} ${icon.fg}`}>
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d={icon.path} />
-                </svg>
-              </div>
+              {item.logoData ? (
+                // eslint-disable-next-line @next/next/no-img-element -- base64 data URL, not a static asset next/image can optimize
+                <img src={item.logoData} alt="" className="h-10 w-10 rounded-md border border-border object-cover" />
+              ) : (
+                <div className={`flex h-10 w-10 items-center justify-center rounded-md text-lg ${icon.bg} ${icon.fg}`}>
+                  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d={icon.path} />
+                  </svg>
+                </div>
+              )}
               {level === "project" || level === "task" ? <StatusBadge status={item.status || "On Track"} /> : null}
             </div>
             <h3 className="mb-1 text-base font-semibold text-text-primary">{item.name}</h3>

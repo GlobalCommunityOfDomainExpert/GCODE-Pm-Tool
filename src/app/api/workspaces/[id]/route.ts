@@ -5,6 +5,13 @@ import { withCapability, ApiError } from "@/lib/auth/requireCapability";
 import { isNodeWithinScopeSubtree, assertAssigneeAllowed } from "@/lib/auth/scope";
 import { assertNodeInOrg } from "@/lib/auth/org";
 
+// Mirrors the same check in ../route.ts (POST) - keep the two in sync if
+// this ever changes.
+const LOGO_DATA_URL = /^data:image\/(png|jpeg|jpg|gif|webp|svg\+xml);base64,/;
+function isValidLogoData(value: unknown): value is string {
+  return typeof value === "string" && value.length <= 600_000 && LOGO_DATA_URL.test(value);
+}
+
 export const PATCH = withCapability("Create/Edit Workspaces", async (req, { params }: { params: { id: string } }, user) => {
   await assertNodeInOrg("workspace", params.id, user.organizationId);
   if (!(await isNodeWithinScopeSubtree(user.scope, "workspace", params.id))) {
@@ -15,11 +22,15 @@ export const PATCH = withCapability("Create/Edit Workspaces", async (req, { para
   if ("accountableId" in body) {
     await assertAssigneeAllowed(user.organizationId, "workspace", params.id, body.accountableId);
   }
+  if ("logoData" in body && body.logoData != null && !isValidLogoData(body.logoData)) {
+    return NextResponse.json({ error: "That logo image couldn't be saved - please try a smaller image." }, { status: 400 });
+  }
 
   const data: Record<string, unknown> = {};
   if ("name" in body) data.name = body.name;
   if ("description" in body) data.description = body.description || null;
   if ("accountableId" in body) data.accountableId = body.accountableId || null;
+  if ("logoData" in body) data.logoData = body.logoData || null;
 
   const workspace = await prisma.workspace.update({
     where: { id: params.id },

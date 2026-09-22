@@ -27,6 +27,9 @@ export interface HierarchyCardItem {
   description: string | null;
   status: string | null;
   accountable: Assignee | null;
+  // Workspace-only (a client logo) - always null for initiative/program/
+  // project cards, which share this same shape but have no such column.
+  logoData: string | null;
   childCount: number;
   progress: number;
   done: number;
