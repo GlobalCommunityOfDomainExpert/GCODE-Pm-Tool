@@ -13,7 +13,7 @@ export function Sidebar({ canManageTeam }: { canManageTeam: boolean }) {
   return (
     <aside className="flex h-full w-sidebar shrink-0 flex-col border-r border-border bg-surface">
       <div className="flex h-header items-center  gap-2 border-b border-border px-6">
-        <Image src={Logo} alt="logo" width={100} />
+
       </div>
       <nav className="flex-1 overflow-y-auto py-3">
         <div className="mb-6 px-2">
