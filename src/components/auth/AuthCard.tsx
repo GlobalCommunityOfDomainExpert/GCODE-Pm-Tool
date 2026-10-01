@@ -15,7 +15,6 @@ export function AuthCard({
         <svg viewBox="0 0 24 24" className="h-5 w-5 text-primary" fill="currentColor">
           <path d="M4 4h7v7H4V4zm9 0h7v7h-7V4zM4 13h7v7H4v-7zm9 0h7v7h-7v-7z" />
         </svg>
-        <span className="text-lg font-bold text-primary">Gcode</span>
       </div>
       <h1 className="mb-1 text-xl font-semibold text-text-primary">{title}</h1>
       {subtitle && <p className="mb-6 text-[13px] text-text-secondary">{subtitle}</p>}
