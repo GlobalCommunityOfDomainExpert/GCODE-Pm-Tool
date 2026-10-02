@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export default async function WorkspacesPage() {
   const user = (await getSessionUserCached())!; // (app)/layout.tsx already guarantees a session here
   const allWorkspaces = await getAllWorkspaces(user.organizationId);
-  const workspaces = await scopeFilterWorkspaces(allWorkspaces, user.scope);
+  const workspaces = await scopeFilterWorkspaces(allWorkspaces, user.assignments);
 
   return (
     <div>

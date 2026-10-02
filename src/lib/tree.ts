@@ -172,58 +172,80 @@ const CHILD_LEVEL_FOR_LEVEL: Partial<Record<HierarchyLevel, HierarchyLevel>> = {
   project: "task",
 };
 
-// Prunes an array of same-level nodes down to what a scoped user may see:
-// - Above the scope root (not yet `insideSubtree`): only the single sibling
-//   that sits on the path to the scope root survives at each level - this is
-//   the "ancestors, for breadcrumb context only" half of the rule, so a
-//   Program-scoped user's Initiative page shows exactly one Initiative
-//   (theirs), not every Initiative in the workspace.
-// - At or below the scope root (`insideSubtree`): everything survives
-//   unfiltered - the scope root's full subtree is fully visible.
-// Mutates each kept node's child array in place (fresh query result per
-// request, so this is safe) and recurses one level at a time using the
-// same child-key maps toTreeNode/toCardItem already rely on.
-function pruneNodes<T extends { id: string }>(
-  nodes: T[],
-  level: HierarchyLevel,
-  chain: string[],
-  depth: number,
-  insideSubtree: boolean
-): T[] {
-  const kept = insideSubtree ? nodes : nodes.filter((n) => n.id === chain[depth]);
+// Per-chain state while walking down the tree: "inside" = at/below that
+// scope root (fully visible), "path" = still on the way to it (only the one
+// ancestor on the path is visible), "dead" = this node left the chain.
+type ChainState = "inside" | "path" | "dead";
+
+// Prunes an array of same-level nodes to the UNION of what every scope chain
+// would show:
+// - Above a scope root only the single sibling on the path to it survives
+//   (ancestors, for breadcrumb context only) - never the scope root's siblings.
+// - At or below a scope root everything survives unfiltered.
+// A node survives if ANY chain is "inside", or any "path" chain runs through
+// it. An empty chain (dangling scope) never matches, so a stale scope fails
+// closed. Mutates each kept node's child array in place (fresh query result
+// per request, so this is safe), one level at a time.
+function pruneNodes<T extends { id: string }>(nodes: T[], level: HierarchyLevel, chains: string[][], depth: number, states: ChainState[]): T[] {
+  const stateFor = (n: T): ChainState[] =>
+    states.map((st, i) => {
+      if (st === "inside") return "inside";
+      if (st === "dead" || chains[i][depth] !== n.id) return "dead";
+      return depth === chains[i].length - 1 ? "inside" : "path";
+    });
+
+  const kept: { node: T; childStates: ChainState[] }[] = [];
+  for (const n of nodes) {
+    const childStates = stateFor(n);
+    if (childStates.some((st) => st !== "dead")) kept.push({ node: n, childStates });
+  }
 
   const childKey = CHILD_KEY_FOR_LEVEL[level];
   const childLevel = CHILD_LEVEL_FOR_LEVEL[level];
-  if (!childKey || !childLevel) return kept;
-
-  const childInsideSubtree = insideSubtree || depth === chain.length - 1;
-  for (const n of kept) {
-    const rec = n as unknown as Record<string, unknown>;
-    const children = (rec[childKey] as T[] | undefined) || [];
-    rec[childKey] = pruneNodes(children, childLevel, chain, depth + 1, childInsideSubtree);
+  if (childKey && childLevel) {
+    for (const { node, childStates } of kept) {
+      const rec = node as unknown as Record<string, unknown>;
+      const children = (rec[childKey] as T[] | undefined) || [];
+      rec[childKey] = pruneNodes(children, childLevel, chains, depth + 1, childStates);
+    }
   }
-  return kept;
+  return kept.map((k) => k.node);
+}
+
+// null = no filtering (some assignment is whole-org). Otherwise one chain per
+// distinct scope; a dangling scope contributes an empty chain (matches nothing).
+async function visibleChains(assignments: { scope: string | null }[]): Promise<string[][] | null> {
+  if (assignments.length === 0) return [];
+  if (assignments.some((a) => !a.scope)) return null;
+  const scopes = [...new Set(assignments.map((a) => a.scope as string))];
+  return Promise.all(scopes.map(async (sc) => (await getScopeChain(sc)) ?? []));
 }
 
 // Applies scope-based read filtering to a full workspaces list (top-level
-// entry point, e.g. getAllWorkspaces()'s result). `scope: null` (Admin /
-// unscoped roles) returns the input untouched.
-export async function scopeFilterWorkspaces<T extends { id: string }>(workspaces: T[], scope: string | null): Promise<T[]> {
-  const chain = await getScopeChain(scope);
-  if (chain === null) return workspaces;
-  return pruneNodes(workspaces, "workspace", chain, 0, false);
+// entry point, e.g. getAllWorkspaces()'s result). A whole-org assignment
+// returns the input untouched; no assignments at all sees nothing.
+export async function scopeFilterWorkspaces<T extends { id: string }>(
+  workspaces: T[],
+  assignments: { scope: string | null }[]
+): Promise<T[]> {
+  const chains = await visibleChains(assignments);
+  if (chains === null) return workspaces;
+  return pruneNodes(workspaces, "workspace", chains, 0, chains.map(() => "path" as ChainState));
 }
 
 // Same, for a single workspace tree (getWorkspaceTree()'s result). Returns
 // null both when the input was null (not found / wrong org) and when the
-// workspace exists but isn't visible under the caller's scope - callers
+// workspace exists but isn't visible under the caller's scopes - callers
 // already treat "null here" as their existing notFound() path, so a direct
 // URL visit to something outside scope 404s exactly like a nonexistent id.
-export async function scopeFilterWorkspace<T extends { id: string }>(workspace: T | null, scope: string | null): Promise<T | null> {
+export async function scopeFilterWorkspace<T extends { id: string }>(
+  workspace: T | null,
+  assignments: { scope: string | null }[]
+): Promise<T | null> {
   if (!workspace) return null;
-  const chain = await getScopeChain(scope);
-  if (chain === null) return workspace;
-  const [pruned] = pruneNodes([workspace], "workspace", chain, 0, false);
+  const chains = await visibleChains(assignments);
+  if (chains === null) return workspace;
+  const [pruned] = pruneNodes([workspace], "workspace", chains, 0, chains.map(() => "path" as ChainState));
   return pruned ?? null;
 }
 

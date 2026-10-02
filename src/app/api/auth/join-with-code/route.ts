@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createSession } from "@/lib/auth/session";
+import { syncRoleAssignments } from "@/lib/auth/assignments";
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    await syncRoleAssignments(tx, user.id, invite.roles, invite.scope);
     await tx.inviteCode.update({ where: { id: invite.id }, data: { usesCount: { increment: 1 } } });
     await tx.inviteCodeRedemption.create({ data: { inviteCodeId: invite.id, userId: user.id } });
 

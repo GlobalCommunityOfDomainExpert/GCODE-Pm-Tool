@@ -14,7 +14,7 @@ export default async function ProjectsPage({
 }) {
   const user = (await getSessionUserCached())!;
   const fetched = await getWorkspaceTree(params.workspaceSlug, user.organizationId);
-  const workspace = await scopeFilterWorkspace(fetched, user.scope);
+  const workspace = await scopeFilterWorkspace(fetched, user.assignments);
   const initiative = workspace?.initiatives.find((i) => i.slug === params.initiativeSlug);
   const program = initiative?.programs.find((p) => p.slug === params.programSlug);
   if (!workspace || !initiative || !program) notFound();

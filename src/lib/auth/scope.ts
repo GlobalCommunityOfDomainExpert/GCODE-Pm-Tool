@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "./requireCapability";
 import type { HierarchyLevel } from "@/lib/types";
+import { assignmentsOfUser } from "./assignments";
 
 export type ScopeKind = Exclude<HierarchyLevel, "task">;
 
@@ -131,24 +132,28 @@ export async function assignableUsersForNode(
 ): Promise<{ id: string; name: string; email: string | null }[]> {
   const candidates = await prisma.user.findMany({
     where: { organizationId, status: "active" },
-    select: { id: true, name: true, email: true, scope: true },
+    select: { id: true, name: true, email: true, roles: true, scope: true, roleAssignments: { select: { role: true, scope: true } } },
     orderBy: { name: "asc" },
   });
 
   if (kind === null || nodeId === null) {
-    return candidates.filter((u) => !u.scope).map(({ id, name, email }) => ({ id, name, email }));
+    return candidates
+      .filter((u) => assignmentsOfUser(u).some((a) => !a.scope))
+      .map(({ id, name, email }) => ({ id, name, email }));
   }
 
   const chain = await ancestorChain(kind, nodeId);
   if (!chain) return [];
 
   return candidates
-    .filter((u) => {
-      const parsed = parseScope(u.scope);
-      if (!parsed) return true;
-      if (parsed.kind === kind && parsed.id === nodeId) return true;
-      return chain.includes(parsed.id);
-    })
+    .filter((u) =>
+      assignmentsOfUser(u).some((a) => {
+        const parsed = parseScope(a.scope);
+        if (!parsed) return true;
+        if (parsed.kind === kind && parsed.id === nodeId) return true;
+        return chain.includes(parsed.id);
+      })
+    )
     .map(({ id, name, email }) => ({ id, name, email }));
 }
 
@@ -167,18 +172,20 @@ export async function assertAssigneeAllowed(
 
   const candidate = await prisma.user.findUnique({
     where: { id: assigneeUserId },
-    select: { organizationId: true, scope: true, status: true },
+    select: { organizationId: true, roles: true, scope: true, status: true, roleAssignments: { select: { role: true, scope: true } } },
   });
   if (!candidate || candidate.organizationId !== organizationId || candidate.status !== "active") {
     throw new ApiError(400, "That teammate isn't part of your organization.");
   }
 
+  const candidateAssignments = assignmentsOfUser(candidate);
   if (kind === null || nodeId === null) {
-    if (candidate.scope) throw new ApiError(400, "That teammate doesn't have scope to be assigned here.");
+    if (!candidateAssignments.some((a) => !a.scope)) throw new ApiError(400, "That teammate doesn't have scope to be assigned here.");
     return;
   }
 
-  if (!(await isNodeWithinScopeSubtree(candidate.scope, kind, nodeId))) {
-    throw new ApiError(400, "That teammate doesn't have scope to be assigned here.");
+  for (const a of candidateAssignments) {
+    if (await isNodeWithinScopeSubtree(a.scope, kind, nodeId)) return;
   }
+  throw new ApiError(400, "That teammate doesn't have scope to be assigned here.");
 }

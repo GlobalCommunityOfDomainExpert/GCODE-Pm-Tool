@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withCapability, ApiError } from "@/lib/auth/requireCapability";
-import { isNodeWithinScopeSubtree, assertAssigneeAllowed } from "@/lib/auth/scope";
+import { assertAssigneeAllowed } from "@/lib/auth/scope";
+import { canOnNode } from "@/lib/auth/access";
 import { assertNodeInOrg } from "@/lib/auth/org";
 import { slugify, uniqueSlug } from "@/lib/slug";
 
 export const PATCH = withCapability("Create/Edit Workspaces", async (req, { params }: { params: { id: string } }, user) => {
   await assertNodeInOrg("initiative", params.id, user.organizationId);
-  if (!(await isNodeWithinScopeSubtree(user.scope, "initiative", params.id))) {
+  if (!(await canOnNode(user, "Create/Edit Workspaces", "initiative", params.id))) {
     throw new ApiError(403, "This initiative is outside your scope.");
   }
 
@@ -42,7 +43,7 @@ export const PATCH = withCapability("Create/Edit Workspaces", async (req, { para
 
 export const DELETE = withCapability("Create/Edit Workspaces", async (_req, { params }: { params: { id: string } }, user) => {
   await assertNodeInOrg("initiative", params.id, user.organizationId);
-  if (!(await isNodeWithinScopeSubtree(user.scope, "initiative", params.id))) {
+  if (!(await canOnNode(user, "Create/Edit Workspaces", "initiative", params.id))) {
     throw new ApiError(403, "This initiative is outside your scope.");
   }
   await prisma.initiative.delete({ where: { id: params.id } });

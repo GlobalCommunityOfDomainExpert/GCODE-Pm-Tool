@@ -4,6 +4,7 @@ import { withCapability, ApiError } from "@/lib/auth/requireCapability";
 import { randomToken, hashToken } from "@/lib/auth/tokens";
 import { sendMail, magicLinkEmail } from "@/lib/mailer";
 import { mailDisplayName } from "@/lib/auth/scopeLabel";
+import { syncRoleAssignments } from "@/lib/auth/assignments";
 
 const TOKEN_TTL_MS = 72 * 60 * 60 * 1000;
 
@@ -24,7 +25,11 @@ export const PATCH = withCapability("Manage Team Members", async (req: NextReque
   if (action === "edit") {
     const roles: string[] = Array.isArray(body?.roles) && body.roles.length ? body.roles : ["Team Member"];
     const scope: string | null = body?.scope ?? null;
-    const updated = await prisma.user.update({ where: { id: target.id }, data: { roles, scope } });
+    const updated = await prisma.$transaction(async (tx) => {
+      const u = await tx.user.update({ where: { id: target.id }, data: { roles, scope } });
+      await syncRoleAssignments(tx, target.id, roles, scope);
+      return u;
+    });
     return NextResponse.json({ id: updated.id, roles: updated.roles, scope: updated.scope });
   }
 

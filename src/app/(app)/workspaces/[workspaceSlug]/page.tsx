@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export default async function InitiativesPage({ params }: { params: { workspaceSlug: string } }) {
   const user = (await getSessionUserCached())!;
   const fetched = await getWorkspaceTree(params.workspaceSlug, user.organizationId);
-  const workspace = await scopeFilterWorkspace(fetched, user.scope);
+  const workspace = await scopeFilterWorkspace(fetched, user.assignments);
   if (!workspace) notFound();
 
   return (

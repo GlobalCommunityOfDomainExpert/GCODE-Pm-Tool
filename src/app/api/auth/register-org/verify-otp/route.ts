@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { hashToken } from "@/lib/auth/tokens";
 import { createSession } from "@/lib/auth/session";
+import { syncRoleAssignments } from "@/lib/auth/assignments";
 
 const MAX_ATTEMPTS = 5;
 
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest) {
         source: "org-founder",
       },
     });
+    await syncRoleAssignments(tx, user.id, ["Admin"], null);
     await tx.pendingOrgRegistration.delete({ where: { email } });
     return { organization, user };
   });

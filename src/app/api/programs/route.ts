@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withCapability, withSession, ApiError } from "@/lib/auth/requireCapability";
-import { isNodeWithinScopeSubtree, assertAssigneeAllowed } from "@/lib/auth/scope";
+import { assertAssigneeAllowed } from "@/lib/auth/scope";
+import { canOnNode } from "@/lib/auth/access";
 import { assertNodeInOrg } from "@/lib/auth/org";
 import { slugify, uniqueSlug } from "@/lib/slug";
 
@@ -25,7 +26,7 @@ export const POST = withCapability("Create/Edit Projects", async (req, _ctx, use
   const body = await req.json();
   if (!body.initiativeId) return NextResponse.json({ error: "initiativeId is required" }, { status: 400 });
   await assertNodeInOrg("initiative", body.initiativeId, user.organizationId);
-  if (!(await isNodeWithinScopeSubtree(user.scope, "initiative", body.initiativeId))) {
+  if (!(await canOnNode(user, "Create/Edit Projects", "initiative", body.initiativeId))) {
     throw new ApiError(403, "That initiative is outside your scope.");
   }
   await assertAssigneeAllowed(user.organizationId, "initiative", body.initiativeId, body.accountableId);

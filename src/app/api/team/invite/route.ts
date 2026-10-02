@@ -4,6 +4,7 @@ import { withCapability } from "@/lib/auth/requireCapability";
 import { randomToken, hashToken } from "@/lib/auth/tokens";
 import { sendMail, magicLinkEmail } from "@/lib/mailer";
 import { mailDisplayName } from "@/lib/auth/scopeLabel";
+import { syncRoleAssignments } from "@/lib/auth/assignments";
 
 const TOKEN_TTL_MS = 72 * 60 * 60 * 1000;
 
@@ -39,6 +40,7 @@ export const POST = withCapability("Manage Team Members", async (req: NextReques
         inviteTokenExpiresAt: new Date(Date.now() + TOKEN_TTL_MS),
       },
     });
+    await syncRoleAssignments(tx, user.id, roles, scope);
     await tx.invite.create({
       data: { userId: user.id, name, email, roles, scope, status: "pending", invitedByName: admin.name, invitedByRole: admin.roles.join(", ") },
     });

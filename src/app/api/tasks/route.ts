@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withCapability, withSession, ApiError } from "@/lib/auth/requireCapability";
-import { isNodeWithinScopeSubtree, assertAssigneeAllowed } from "@/lib/auth/scope";
+import { assertAssigneeAllowed } from "@/lib/auth/scope";
+import { canOnNode } from "@/lib/auth/access";
 import { assertNodeInOrg } from "@/lib/auth/org";
 
 const RESPONSIBLE_SELECT = { select: { id: true, name: true, email: true } } as const;
@@ -24,7 +25,7 @@ export const POST = withCapability("Create/Edit Tasks", async (req, _ctx, user) 
   const body = await req.json();
   if (!body.projectId) return NextResponse.json({ error: "projectId is required" }, { status: 400 });
   await assertNodeInOrg("project", body.projectId, user.organizationId);
-  if (!(await isNodeWithinScopeSubtree(user.scope, "project", body.projectId))) {
+  if (!(await canOnNode(user, "Create/Edit Tasks", "project", body.projectId))) {
     throw new ApiError(403, "That project is outside your scope.");
   }
   await assertAssigneeAllowed(user.organizationId, "project", body.projectId, body.responsibleId);

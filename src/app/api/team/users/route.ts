@@ -19,6 +19,7 @@ export const GET = withCapability("Manage Team Members", async (req, _ctx, user)
       email: true,
       roles: true,
       scope: true,
+      roleAssignments: { select: { role: true, scope: true } },
       status: true,
       source: true,
       inviteCode: { select: { code: true } },

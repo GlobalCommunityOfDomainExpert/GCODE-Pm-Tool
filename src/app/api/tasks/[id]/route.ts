@@ -3,7 +3,8 @@ import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSession, ApiError } from "@/lib/auth/requireCapability";
 import { getCapabilitiesForRoles } from "@/lib/auth/capabilities";
-import { isNodeWithinScopeSubtree, assertAssigneeAllowed } from "@/lib/auth/scope";
+import { assertAssigneeAllowed } from "@/lib/auth/scope";
+import { canOnNode } from "@/lib/auth/access";
 import { assertNodeInOrg } from "@/lib/auth/org";
 
 // Two ways in: a manager with "Create/Edit Tasks" can change any field on any
@@ -20,13 +21,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   try {
     const user = await requireSession();
     const capabilities = await getCapabilitiesForRoles(user.organizationId, user.roles);
-    const canEditFully = capabilities.has("Create/Edit Tasks");
-    const canExecute = capabilities.has("Execute Assigned Tasks");
-    if (!canEditFully && !canExecute) throw new ApiError(403, "You don't have permission to do that.");
+    if (!capabilities.has("Create/Edit Tasks") && !capabilities.has("Execute Assigned Tasks")) {
+      throw new ApiError(403, "You don't have permission to do that.");
+    }
 
     await assertNodeInOrg("task", params.id, user.organizationId);
     const projectId = await projectIdForTask(params.id);
-    if (!(await isNodeWithinScopeSubtree(user.scope, "project", projectId))) {
+    // Per-node: an assignment must hold the capability AND cover this project.
+    const canEditFully = await canOnNode(user, "Create/Edit Tasks", "project", projectId);
+    const canExecute = canEditFully || (await canOnNode(user, "Execute Assigned Tasks", "project", projectId));
+    if (!canEditFully && !canExecute) {
       throw new ApiError(403, "This task is outside your scope.");
     }
 
@@ -71,7 +75,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     const capabilities = await getCapabilitiesForRoles(user.organizationId, user.roles);
     if (!capabilities.has("Create/Edit Tasks")) throw new ApiError(403, "You don't have permission to do that.");
     await assertNodeInOrg("task", params.id, user.organizationId);
-    if (!(await isNodeWithinScopeSubtree(user.scope, "project", await projectIdForTask(params.id)))) {
+    if (!(await canOnNode(user, "Create/Edit Tasks", "project", await projectIdForTask(params.id)))) {
       throw new ApiError(403, "This task is outside your scope.");
     }
 

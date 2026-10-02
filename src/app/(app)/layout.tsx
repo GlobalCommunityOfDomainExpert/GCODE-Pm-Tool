@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSessionUserCached } from "@/lib/auth/session";
 import { getCapabilitiesForRolesCached } from "@/lib/auth/capabilities";
 import { findNodeLabelForScope } from "@/lib/auth/scopeLabel";
+import { isOrgWide, scopedScopes } from "@/lib/auth/access";
 import { getOrgName } from "@/lib/auth/org";
 import { Sidebar } from "@/components/Sidebar";
 import { Header } from "@/components/Header";
@@ -17,18 +18,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   if (!user) redirect("/login");
 
   // Org name only for org-wide people (Admin / no scope); scoped users see their scope only.
-  const orgWide = user.roles.includes("Admin") || !user.scope;
-  const [capabilities, orgName, scopeLabel] = await Promise.all([
+  const orgWide = isOrgWide(user);
+  const [capabilities, orgName, scopeLabels] = await Promise.all([
     getCapabilitiesForRolesCached(user.organizationId, user.roles),
     orgWide ? getOrgName(user.organizationId) : Promise.resolve(null),
-    user.scope ? findNodeLabelForScope(user.scope) : Promise.resolve(null),
+    Promise.all(scopedScopes(user).map((sc) => findNodeLabelForScope(sc))),
   ]);
 
   return (
     <div className="flex h-screen w-screen overflow-hidden">
       <Sidebar canManageTeam={capabilities.has("Manage Team Members")} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Header userName={user.name} orgName={orgName} roles={user.roles} scopeLabel={scopeLabel} />
+        <Header userName={user.name} orgName={orgName} roles={user.roles} scopeLabel={scopeLabels.filter(Boolean).join(", ") || null} />
         <main className="flex-1 overflow-y-auto overflow-x-hidden bg-app p-6">
           <div className="mx-auto w-full max-w-content">{children}</div>
         </main>

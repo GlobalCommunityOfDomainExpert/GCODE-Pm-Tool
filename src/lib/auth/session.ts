@@ -2,6 +2,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { randomToken } from "./tokens";
+import { assignmentsOfUser, type Assignment } from "./assignments";
 
 const COOKIE_NAME = "gcode_session";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -11,8 +12,11 @@ export type SessionUser = {
   organizationId: string;
   name: string;
   email: string | null;
+  // Union of every assigned role - display and coarse "holds this capability
+  // somewhere" gates only. Per-node decisions go through access.ts canOnNode().
   roles: string[];
-  scope: string | null;
+  // One entry per role-on-scope (RoleAssignment). scope null = whole org.
+  assignments: Assignment[];
   status: string;
 };
 
@@ -48,19 +52,22 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
   const session = await prisma.session.findUnique({
     where: { id },
-    include: { user: true },
+    include: { user: { include: { roleAssignments: true } } },
   });
   if (!session || session.revokedAt || session.expiresAt < new Date()) return null;
   if (session.user.status === "suspended") return null;
 
   const { user } = session;
+  // Reads prefer RoleAssignment; legacy roles/scope are only a fallback for a
+  // user that has no assignment rows (dual-write keeps the two in sync).
+  const assignments = assignmentsOfUser(user);
   return {
     id: user.id,
     organizationId: user.organizationId,
     name: user.name,
     email: user.email,
-    roles: user.roles,
-    scope: user.scope,
+    roles: [...new Set(assignments.map((a) => a.role))],
+    assignments,
     status: user.status,
   };
 }
