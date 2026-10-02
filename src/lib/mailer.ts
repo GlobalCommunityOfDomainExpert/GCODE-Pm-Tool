@@ -69,7 +69,7 @@ export function magicLinkEmail(opts: { displayName: string; recipientName: strin
     `Hi ${opts.recipientName},`,
     "",
     opts.isReset
-      ? `We received a request to reset the password on your ${opts.displayName} account .`
+      ? `We received a request to reset the password on your ${opts.displayName} account.`
       : opts.inviter
         ? `${opts.inviter.name} (${opts.inviter.role}) has invited you to join ${opts.displayName}.`
         : `${opts.displayName} has invited you to join their team.`,
