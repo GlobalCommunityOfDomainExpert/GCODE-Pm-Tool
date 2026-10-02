@@ -170,7 +170,59 @@ model User {
   accountableProjects    Project[]    @relation("ProjectAccountable")
   responsibleTasks       Task[]       @relation("TaskResponsible")
 
+  // Phase 0 / R1 (additive): per-person login identity shared across orgs, and
+  // one row per role-on-scope. Legacy `roles`/`scope` above stay authoritative
+  // until the contract release - see Enhancement-Plan.pdf section 8.
+  accountId       String?
+  account         Account?         @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  roleAssignments RoleAssignment[]
+
   @@unique([organizationId, email])
+}
+
+// One login identity (email + password) that can hold a User membership in
+// several organizations. Only created for unambiguous emails during backfill:
+// same-email rows with different passwords are left unlinked (accountId null)
+// rather than merged, so nobody's password is ever silently overridden.
+model Account {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  users User[]
+}
+
+// Permissions on a node = union of every assignment whose scope covers it.
+// scope: "{kind}:{id}" or null = whole org. The (userId, role, scope) uniqueness
+// for scope IS NULL is enforced by a partial unique index in the migration,
+// since Postgres treats NULLs as distinct in a plain unique constraint.
+model RoleAssignment {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String
+  scope     String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, role, scope])
+  @@index([userId])
+}
+
+// Audit trail for data-changing normalisations (EN_013 scoped Admins,
+// EN_019 scoped Portfolio Managers) so the old value is always recoverable.
+// No FK to User on purpose: the log must survive the user being deleted.
+model ScopeChangeLog {
+  id         String   @id @default(cuid())
+  userId     String
+  oldRoles   String[]
+  oldScope   String?
+  newRoles   String[]
+  newScope   String?
+  reason     String
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
 }
 
 // The client holds only this row's `id` as an opaque session token (httpOnly
