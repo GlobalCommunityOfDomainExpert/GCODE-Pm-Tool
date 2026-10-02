@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Assignee } from "@/lib/types";
 import type { ScopeKind } from "@/lib/auth/scope";
+import { apiFetch } from "@/lib/client/apiFetch";
 
 // Searchable, pick-only select backing Accountable/Responsible: results come
 // from /api/team/assignable-users, already filtered to real org teammates
@@ -66,7 +67,7 @@ export function AssigneeCombobox({
       }
       if (query.trim()) params.set("q", query.trim());
       try {
-        const res = await fetch(`/api/team/assignable-users?${params.toString()}`);
+        const res = await apiFetch(`/api/team/assignable-users?${params.toString()}`);
         const data = res.ok ? await res.json() : [];
         setResults(data);
         if (!query.trim() && res.ok) defaultResultsCache.set(cacheKey, data);

@@ -4,7 +4,8 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import type { ScopeNode, ScopeOption, TeamUser } from "./types";
 import { EditUserModal } from "./EditUserModal";
-import { reportIfActionFailed, showActionNotice } from "../ActionToast";
+import { mutate } from "../ActionToast";
+import { apiFetch } from "@/lib/client/apiFetch";
 import { Spinner } from "../Spinner";
 import { Skeleton } from "../Skeleton";
 
@@ -83,14 +84,13 @@ export function DirectoryTab({
     try {
       const res =
         action === "delete"
-          ? await fetch(`/api/team/users/${id}`, { method: "DELETE" })
-          : await fetch(`/api/team/users/${id}`, {
+          ? await apiFetch(`/api/team/users/${id}`, { method: "DELETE" })
+          : await apiFetch(`/api/team/users/${id}`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ action }),
             });
-      if (await reportIfActionFailed(res, "That didn't go through.")) return;
-      showActionNotice(ACTION_NOTICE[action] || "Done.");
+      if (!(await mutate(res, { success: ACTION_NOTICE[action] || "Done.", failure: "That didn't go through." }))) return;
       onChanged();
     } finally {
       setBusy(null);

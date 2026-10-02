@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { AssigneeCombobox } from "./AssigneeCombobox";
-import { reportIfActionFailed } from "./ActionToast";
+import { mutate } from "./ActionToast";
+import { apiFetch } from "@/lib/client/apiFetch";
 import { Spinner } from "./Spinner";
 import { Modal } from "./Modal";
 import {
@@ -113,7 +114,7 @@ export function CreateItemModal({
     try {
       let res: Response;
       if (editTask) {
-        res = await fetch(`/api/tasks/${editTask.id}`, {
+        res = await apiFetch(`/api/tasks/${editTask.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -135,7 +136,7 @@ export function CreateItemModal({
         if (level === "project") body.status = status;
         if (level === "workspace") body.logoData = logoData;
 
-        res = await fetch(`${ENDPOINT[level]}/${editItem.id}`, {
+        res = await apiFetch(`${ENDPOINT[level]}/${editItem.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -161,7 +162,7 @@ export function CreateItemModal({
           body.dueDate = dueDate || null;
         }
 
-        res = await fetch(ENDPOINT[level], {
+        res = await apiFetch(ENDPOINT[level], {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -171,12 +172,13 @@ export function CreateItemModal({
       // A scope/permission failure closes and re-shows a modal that looks
       // saved, which is worse than leaving it open - so on failure, keep it
       // open (toast explains why) instead of calling onSaved()/onClose().
-      if (await reportIfActionFailed(res, `Couldn't save this ${label.toLowerCase()}.`)) return;
-
       // Every POST/PATCH route here returns the created/updated row - hand it
       // to the caller so it can patch local state directly instead of
-      // re-fetching the whole list/tree.
-      const saved = await res.json().catch(() => undefined);
+      // re-fetching the whole list/tree. Read it from a clone before mutate()
+      // so the failure path can still read the error body.
+      const body = res.clone();
+      if (!(await mutate(res, { success: `${label} ${isEdit ? "updated" : "created"}.`, failure: `Couldn't save this ${label.toLowerCase()}.` }))) return;
+      const saved = await body.json().catch(() => undefined);
       onSaved(saved);
       onClose();
     } finally {

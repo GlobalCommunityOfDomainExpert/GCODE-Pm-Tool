@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { getSessionUserCached } from "@/lib/auth/session";
+import { cookies } from "next/headers";
+import { getSessionUserCached, SESSION_COOKIE } from "@/lib/auth/session";
 import { getCapabilitiesForRolesCached } from "@/lib/auth/capabilities";
 import { findNodeLabelForScope } from "@/lib/auth/scopeLabel";
 import { isOrgWide, scopedScopes } from "@/lib/auth/access";
@@ -15,7 +16,12 @@ import { ActionToastHost } from "@/components/ActionToast";
 // JS or editing client state.
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUserCached();
-  if (!user) redirect("/login");
+  if (!user) {
+    // A cookie that no longer resolves to a session means it was revoked or
+    // expired server-side (e.g. an admin changed this person's access) -
+    // explain that instead of dropping them on a bare login form.
+    redirect(cookies().get(SESSION_COOKIE) ? "/login?reason=access-changed" : "/login");
+  }
 
   // Org name only for org-wide people (Admin / no scope); scoped users see their scope only.
   const orgWide = isOrgWide(user);

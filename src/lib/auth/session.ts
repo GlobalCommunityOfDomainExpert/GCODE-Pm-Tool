@@ -5,6 +5,7 @@ import { randomToken } from "./tokens";
 import { assignmentsOfUser, type Assignment } from "./assignments";
 
 const COOKIE_NAME = "gcode_session";
+export const SESSION_COOKIE = COOKIE_NAME;
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 export type SessionUser = {

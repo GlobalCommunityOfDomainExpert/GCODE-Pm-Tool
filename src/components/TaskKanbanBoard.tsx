@@ -16,7 +16,8 @@ import { CreateItemModal } from "./CreateItemModal";
 import { TaskDetailPanel } from "./TaskDetailPanel";
 import { ViewToggle, type ViewMode } from "./ViewToggle";
 import { TaskListView } from "./TaskListView";
-import { reportIfActionFailed } from "./ActionToast";
+import { mutate } from "./ActionToast";
+import { apiFetch } from "@/lib/client/apiFetch";
 import { Spinner } from "./Spinner";
 
 const COLUMN_COLOR: Record<string, string> = {
@@ -47,12 +48,12 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
     setMovingIds((prev) => new Set(prev).add(taskId));
     try {
-      const res = await fetch(`/api/tasks/${taskId}`, {
+      const res = await apiFetch(`/api/tasks/${taskId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
-      if (await reportIfActionFailed(res, "Couldn't move this task.")) {
+      if (!(await mutate(res, { success: `Task moved to ${newStatus}.`, failure: "Couldn't move this task." }))) {
         setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: task.status } : t)));
       }
     } finally {

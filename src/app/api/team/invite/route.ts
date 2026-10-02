@@ -4,6 +4,7 @@ import { withCapability } from "@/lib/auth/requireCapability";
 import { randomToken, hashToken } from "@/lib/auth/tokens";
 import { sendMail, magicLinkEmail } from "@/lib/mailer";
 import { mailDisplayName } from "@/lib/auth/scopeLabel";
+import { assertValidAccess } from "@/lib/auth/roleRules";
 import { syncRoleAssignments } from "@/lib/auth/assignments";
 
 const TOKEN_TTL_MS = 72 * 60 * 60 * 1000;
@@ -19,6 +20,8 @@ export const POST = withCapability("Manage Team Members", async (req: NextReques
   if (!name || !email) {
     return NextResponse.json({ error: "Name and email are required." }, { status: 400 });
   }
+
+  assertValidAccess(roles, scope);
 
   const dupe = await prisma.user.findFirst({ where: { organizationId: admin.organizationId, email } });
   if (dupe) {

@@ -1,4 +1,6 @@
 "use client";
+import { apiFetch } from "@/lib/client/apiFetch";
+import { showActionSuccess } from "../ActionToast";
 
 import { useState } from "react";
 import { BUILT_IN_ROLES } from "@/lib/auth/capabilityConstants";
@@ -9,6 +11,10 @@ import { Spinner } from "../Spinner";
 
 const INPUT_CLASS =
   "rounded-md border border-border px-3 py-2.5 text-[13px] outline-none transition-shadow focus:border-primary focus:ring-2 focus:ring-primary/15";
+
+// Admin and Portfolio Manager are always whole-org (EN_013/EN_019); the server
+// rejects a scoped one with 400, this just stops the form offering it.
+const ORG_WIDE_ROLES = ["Admin", "Portfolio Manager"];
 
 export function EditUserModal({
   user,
@@ -25,6 +31,7 @@ export function EditUserModal({
   const [scope, setScope] = useState(user.scope || "");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const lockedWholeOrg = roles.some((r) => ORG_WIDE_ROLES.includes(r));
 
   function toggleRole(role: string) {
     setRoles((prev) => (prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]));
@@ -35,16 +42,21 @@ export function EditUserModal({
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch(`/api/team/users/${user.id}`, {
+      const res = await apiFetch(`/api/team/users/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "edit", roles, scope: scope || null }),
+        body: JSON.stringify({ action: "edit", roles, scope: lockedWholeOrg ? null : scope || null }),
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error || "Something went wrong.");
+        if (res.status !== 401) setError(data.error || "Something went wrong.");
         return;
       }
+      showActionSuccess(
+        data.signedOut
+          ? `${user.name}'s access was updated. They've been signed out and will sign in again to use it.`
+          : `${user.name} updated.`
+      );
       onSaved();
     } finally {
       setLoading(false);
@@ -108,7 +120,13 @@ export function EditUserModal({
         </div>
         <label className="flex flex-col gap-1.5">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Scope</span>
-          <ScopeSelect tree={scopeTree} value={scope} onChange={setScope} className={INPUT_CLASS} />
+          {lockedWholeOrg ? (
+            <div data-testid="scope-locked" className={`${INPUT_CLASS} bg-app text-text-secondary`}>
+              Whole Org <span className="text-[11px]">(always, for Admin / Portfolio Manager)</span>
+            </div>
+          ) : (
+            <ScopeSelect tree={scopeTree} value={scope} onChange={setScope} className={INPUT_CLASS} />
+          )}
         </label>
         {error && <div className="rounded-sm border border-danger/30 bg-danger/5 px-3 py-2 text-[13px] text-danger">{error}</div>}
       </form>

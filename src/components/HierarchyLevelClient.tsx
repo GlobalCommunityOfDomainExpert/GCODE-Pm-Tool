@@ -8,7 +8,8 @@ import { HierarchyCardGrid } from "./HierarchyCardGrid";
 import { HierarchyTreeTable } from "./HierarchyTreeTable";
 import { ViewToggle, type ViewMode } from "./ViewToggle";
 import { CreateItemModal } from "./CreateItemModal";
-import { reportIfActionFailed } from "./ActionToast";
+import { mutate } from "./ActionToast";
+import { apiFetch } from "@/lib/client/apiFetch";
 
 type SavedRow = {
   id: string;
@@ -125,8 +126,8 @@ export function HierarchyLevelClient({
     // request comes back non-2xx.
     setItems((prev) => prev.filter((it) => it.id !== item.id));
     setTreeItems((prev) => prev.filter((n) => n.id !== item.id));
-    const res = await fetch(`${LEVEL_ENDPOINT[level]}/${item.id}`, { method: "DELETE" });
-    if (await reportIfActionFailed(res, `Couldn't delete this ${LEVEL_LABEL[level].toLowerCase()}.`)) {
+    const res = await apiFetch(`${LEVEL_ENDPOINT[level]}/${item.id}`, { method: "DELETE" });
+    if (!(await mutate(res, { success: `${LEVEL_LABEL[level]} deleted.`, failure: `Couldn't delete this ${LEVEL_LABEL[level].toLowerCase()}.` }))) {
       setItems(itemsSnapshot);
       setTreeItems(treeSnapshot);
     }

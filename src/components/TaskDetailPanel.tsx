@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { TASK_STATUSES, type TaskItem } from "@/lib/types";
 import { PriorityBadge, Avatar } from "./Badges";
-import { reportIfActionFailed } from "./ActionToast";
+import { mutate } from "./ActionToast";
+import { apiFetch } from "@/lib/client/apiFetch";
 import { Spinner } from "./Spinner";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -62,12 +63,12 @@ export function TaskDetailPanel({
     onUpdated({ status: next });
     setSavingStatus(true);
     try {
-      const res = await fetch(`/api/tasks/${task.id}`, {
+      const res = await apiFetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: next }),
       });
-      if (await reportIfActionFailed(res, "Couldn't change this task's status.")) {
+      if (!(await mutate(res, { success: `Task status changed to ${next}.`, failure: "Couldn't change this task's status." }))) {
         setStatus(previous);
         onUpdated({ status: previous });
       }
@@ -84,12 +85,12 @@ export function TaskDetailPanel({
     onUpdated({ description: next });
     setSavingDescription(true);
     try {
-      const res = await fetch(`/api/tasks/${task.id}`, {
+      const res = await apiFetch(`/api/tasks/${task.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ description: next }),
       });
-      if (await reportIfActionFailed(res, "Couldn't save this description.")) {
+      if (!(await mutate(res, { success: "Description saved.", failure: "Couldn't save this description." }))) {
         setDescription(previous);
         onUpdated({ description: previous });
       }

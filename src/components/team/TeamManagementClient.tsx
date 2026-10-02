@@ -5,7 +5,9 @@ import { DirectoryTab } from "./DirectoryTab";
 import { RoleDefinitionsTab } from "./RoleDefinitionsTab";
 import { InviteCodesTab } from "./InviteCodesTab";
 import { InviteUserModal } from "./InviteUserModal";
-import type { CustomRole, InviteCode, ScopeNode, TeamUser } from "./types";
+import type { InviteCode, ScopeNode, TeamUser } from "./types";
+import { showActionError, showActionSuccess } from "../ActionToast";
+import { apiFetch } from "@/lib/client/apiFetch";
 import { flattenScopeTree } from "./types";
 
 type Tab = "users" | "roles" | "invites";
@@ -14,13 +16,11 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
   const [tab, setTab] = useState<Tab>("users");
   const [users, setUsers] = useState<TeamUser[]>([]);
   const [codes, setCodes] = useState<InviteCode[]>([]);
-  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [scopeTree, setScopeTree] = useState<ScopeNode[]>([]);
   const scopeOptions = flattenScopeTree(scopeTree);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [inviteModalOpen, setInviteModalOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
   const [usersLoading, setUsersLoading] = useState(false);
   const [initialUsersLoad, setInitialUsersLoad] = useState(true);
 
@@ -30,7 +30,7 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
       const params = new URLSearchParams();
       if (search) params.set("q", search);
       if (roleFilter) params.set("role", roleFilter);
-      const res = await fetch(`/api/team/users?${params.toString()}`);
+      const res = await apiFetch(`/api/team/users?${params.toString()}`);
       if (res.ok) setUsers(await res.json());
     } finally {
       setUsersLoading(false);
@@ -39,18 +39,13 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
   }, [search, roleFilter]);
 
   const loadCodes = useCallback(async () => {
-    const res = await fetch("/api/team/invite-codes");
+    const res = await apiFetch("/api/team/invite-codes");
     if (res.ok) setCodes(await res.json());
   }, []);
 
-  const loadCustomRoles = useCallback(async () => {
-    const res = await fetch("/api/team/custom-roles");
-    if (res.ok) setCustomRoles(await res.json());
-  }, []);
-
   useEffect(() => {
-    fetch("/api/team/scope-options")
-      .then((r) => r.json())
+    apiFetch("/api/team/scope-options")
+      .then((r) => (r.ok ? r.json() : []))
       .then(setScopeTree);
   }, []);
 
@@ -60,13 +55,7 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
 
   useEffect(() => {
     if (tab === "invites") loadCodes();
-    if (tab === "roles") loadCustomRoles();
-  }, [tab, loadCodes, loadCustomRoles]);
-
-  function showToast(message: string) {
-    setToast(message);
-    setTimeout(() => setToast(null), 3000);
-  }
+  }, [tab, loadCodes]);
 
   const allRoles = Array.from(new Set(users.flatMap((u) => u.roles)));
 
@@ -105,8 +94,6 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
         ))}
       </div>
 
-      {toast && <div className="mb-4 rounded-sm border border-success/30 bg-success/5 px-3 py-2 text-[13px] text-success">{toast}</div>}
-
       {tab === "users" && (
         <DirectoryTab
           users={users}
@@ -123,7 +110,7 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
           onChanged={loadUsers}
         />
       )}
-      {tab === "roles" && <RoleDefinitionsTab customRoles={customRoles} onChanged={loadCustomRoles} />}
+      {tab === "roles" && <RoleDefinitionsTab />}
       {tab === "invites" && <InviteCodesTab codes={codes} scopeOptions={scopeOptions} scopeTree={scopeTree} onChanged={loadCodes} />}
 
       {inviteModalOpen && (
@@ -132,7 +119,8 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
           onClose={() => setInviteModalOpen(false)}
           onCreated={(emailSent) => {
             setInviteModalOpen(false);
-            showToast(emailSent ? "Invite email sent." : "User created, but the invite email failed to send — resend from the row menu.");
+            if (emailSent) showActionSuccess("Invite email sent.");
+            else showActionError("User created, but the invite email failed to send — resend from the row menu.");
             loadUsers();
           }}
         />

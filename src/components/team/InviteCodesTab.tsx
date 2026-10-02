@@ -1,9 +1,15 @@
 "use client";
+import { apiFetch } from "@/lib/client/apiFetch";
+import { mutate, showActionSuccess } from "../ActionToast";
 
 import { useState } from "react";
 import { ROLE_CHOICES } from "@/lib/auth/capabilityConstants";
 import type { InviteCode, ScopeNode, ScopeOption } from "./types";
 import { ScopeSelect } from "./ScopeSelect";
+
+// Admin and Portfolio Manager are always whole-org (EN_013/EN_019); the server
+// rejects a scoped one with 400, this just stops the form offering it.
+const ORG_WIDE_ROLES = ["Admin", "Portfolio Manager"];
 
 export function InviteCodesTab({
   codes,
@@ -24,6 +30,8 @@ export function InviteCodesTab({
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
 
+  const lockedWholeOrg = ORG_WIDE_ROLES.includes(role);
+
   async function handleGenerate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
@@ -33,16 +41,17 @@ export function InviteCodesTab({
     }
     setLoading(true);
     try {
-      const res = await fetch("/api/team/invite-codes", {
+      const res = await apiFetch("/api/team/invite-codes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ roles: [role], scope: scope || null, maxUses: maxUses ? Number(maxUses) : null, note: note || null }),
+        body: JSON.stringify({ roles: [role], scope: lockedWholeOrg ? null : scope || null, maxUses: maxUses ? Number(maxUses) : null, note: note || null }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(data.error);
+        if (res.status !== 401) setError(data.error || "Couldn't generate that code.");
         return;
       }
+      showActionSuccess("Invite code generated.");
       setNote("");
       setMaxUses("");
       onChanged();
@@ -53,12 +62,12 @@ export function InviteCodesTab({
 
   async function handleRevoke(id: string) {
     if (!confirm("Revoke this invite code? It will no longer work for new sign-ups.")) return;
-    await fetch(`/api/team/invite-codes/${id}`, {
+    const res = await apiFetch(`/api/team/invite-codes/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "revoke" }),
     });
-    onChanged();
+    if (await mutate(res, { success: "Invite code revoked.", failure: "Couldn't revoke that code." })) onChanged();
   }
 
   function copy(code: string) {
@@ -95,7 +104,13 @@ export function InviteCodesTab({
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Scope</span>
-          <ScopeSelect tree={scopeTree} value={scope} onChange={setScope} className="min-w-[200px] rounded-sm border border-border px-3 py-2 text-[13px]" />
+          {lockedWholeOrg ? (
+            <div data-testid="scope-locked" className="min-w-[200px] rounded-sm border border-border bg-app px-3 py-2 text-[13px] text-text-secondary">
+              Whole Org (always)
+            </div>
+          ) : (
+            <ScopeSelect tree={scopeTree} value={scope} onChange={setScope} className="min-w-[200px] rounded-sm border border-border px-3 py-2 text-[13px]" />
+          )}
         </label>
         <label className="flex flex-col gap-1.5">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Max Uses</span>

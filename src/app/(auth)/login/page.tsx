@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AuthCard, AuthField, AuthError, AuthButton } from "@/components/auth/AuthCard";
@@ -11,6 +11,12 @@ const LOGIN_ERROR_MESSAGE: Record<string, string> = {
   pending: "This account is still pending. Check your email for your invite link.",
 };
 
+// Shown when a signed-in session was ended server-side (EN_018) - see
+// (app)/layout.tsx and lib/client/apiFetch.ts, which both send people here.
+const REASON_MESSAGE: Record<string, string> = {
+  "access-changed": "Your session ended because your access was updated or you were signed out. Please sign in again.",
+};
+
 export default function LoginPage() {
   const router = useRouter();
   const [tab, setTab] = useState<"org" | "employee">("org");
@@ -18,6 +24,14 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
+
+  // window.location instead of useSearchParams: that hook forces a Suspense
+  // boundary on this otherwise static page.
+  useEffect(() => {
+    const reason = new URLSearchParams(window.location.search).get("reason");
+    if (reason && REASON_MESSAGE[reason]) setNotice(REASON_MESSAGE[reason]);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -62,6 +76,11 @@ export default function LoginPage() {
         )
       }
     >
+      {notice && (
+        <div role="status" className="rounded-sm bg-primary/10 px-3 py-2 text-[13px] text-primary">
+          {notice}
+        </div>
+      )}
       <div className="flex rounded-sm border border-border p-0.5 text-[13px]">
         {(["org", "employee"] as const).map((t) => (
           <button

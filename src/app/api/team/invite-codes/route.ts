@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { withCapability, ApiError } from "@/lib/auth/requireCapability";
 import { generateInviteCode } from "@/lib/auth/tokens";
+import { assertValidAccess } from "@/lib/auth/roleRules";
 
 export const GET = withCapability("Manage Team Members", async (_req, _ctx, user) => {
   const codes = await prisma.inviteCode.findMany({
@@ -19,6 +20,8 @@ export const POST = withCapability("Manage Team Members", async (req: NextReques
   const scope: string | null = body?.scope || null;
   const note: string | null = body?.note || null;
   const maxUses: number | null = body?.maxUses ? Number(body.maxUses) : null;
+
+  assertValidAccess(roles, scope);
 
   if (roles.includes("Client") && !scope) {
     throw new ApiError(400, 'Pick a Scope for a Client code — "Whole Org" would give an outside client view of everything.');
