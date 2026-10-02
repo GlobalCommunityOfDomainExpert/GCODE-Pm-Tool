@@ -47,24 +47,32 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
-export function magicLinkEmail(opts: { orgName: string; recipientName: string; link: string; isReset: boolean }) {
-  const orgName = escapeHtml(opts.orgName);
+export function magicLinkEmail(opts: { displayName: string; recipientName: string; link: string; isReset: boolean; inviter?: { name: string; role: string } | null }) {
+  const displayName = escapeHtml(opts.displayName);
   const recipientName = escapeHtml(opts.recipientName);
+  const inviterName = opts.inviter ? escapeHtml(opts.inviter.name) : null;
+  const inviterRole = opts.inviter ? escapeHtml(opts.inviter.role) : null;
   const action = opts.isReset ? "reset your password" : "finish setting up your account";
   const buttonLabel = opts.isReset ? "Reset password" : "Set up your account";
   const subject = opts.isReset
-    ? `Reset your Gcode password for ${opts.orgName}`
-    : `You're invited to join ${opts.orgName} on Gcode`;
+    ? `Reset your password for ${opts.displayName}`
+    : opts.inviter
+      ? `${opts.inviter.name} invited you to join ${opts.displayName}`
+      : `You're invited to join ${opts.displayName}`;
   const preheader = opts.isReset
-    ? `Reset your password for ${opts.orgName} - this link expires in 72 hours.`
-    : `${opts.orgName} has invited you to Gcode - set up your account in the next 72 hours.`;
+    ? `Reset your password for ${opts.displayName} - this link expires in 72 hours.`
+    : opts.inviter
+      ? `${opts.inviter.name} (${opts.inviter.role}) has invited you to join ${opts.displayName} - set up your account in the next 72 hours.`
+      : `${opts.displayName} has invited you - set up your account in the next 72 hours.`;
 
   const text = [
     `Hi ${opts.recipientName},`,
     "",
     opts.isReset
-      ? `We received a request to reset the password on your ${opts.orgName} account on Gcode.`
-      : `${opts.orgName} has invited you to join their team on Gcode.`,
+      ? `We received a request to reset the password on your ${opts.displayName} account .`
+      : opts.inviter
+        ? `${opts.inviter.name} (${opts.inviter.role}) has invited you to join ${opts.displayName}.`
+        : `${opts.displayName} has invited you to join their team.`,
     "",
     `${buttonLabel}: ${opts.link}`,
     "",
@@ -87,19 +95,17 @@ export function magicLinkEmail(opts: { orgName: string; recipientName: string; l
       <tr>
         <td align="center" style="padding:40px 16px;">
           <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="width:480px; max-width:100%; background-color:#ffffff; border:1px solid #e2e8f0; border-radius:12px;">
-            <tr>
-              <td style="padding:28px 32px; border-bottom:1px solid #e2e8f0;">
-                <span style="font-family:-apple-system,Segoe UI,Inter,sans-serif; font-size:20px; font-weight:700; color:#6366f1; letter-spacing:-0.02em;">Gcode</span>
-              </td>
-            </tr>
+         
             <tr>
               <td style="padding:32px; font-family:-apple-system,Segoe UI,Inter,sans-serif;">
                 <p style="margin:0 0 16px; font-size:15px; line-height:1.6; color:#0f172a;">Hi ${recipientName},</p>
                 <p style="margin:0 0 24px; font-size:15px; line-height:1.6; color:#0f172a;">
                   ${
                     opts.isReset
-                      ? `We received a request to reset the password on your <strong>${orgName}</strong> account on Gcode.`
-                      : `<strong>${orgName}</strong> has invited you to join their team on Gcode.`
+                      ? `We received a request to reset the password on your <strong>${displayName}</strong> account .`
+                      : inviterName
+                        ? `<strong>${inviterName}</strong> (${inviterRole}) has invited you to join <strong>${displayName}</strong>.`
+                        : `<strong>${displayName}</strong> has invited you to join their team.`
                   }
                 </p>
                 <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
@@ -131,7 +137,7 @@ export function magicLinkEmail(opts: { orgName: string; recipientName: string; l
             </tr>
           </table>
           <p style="margin:20px 0 0; font-family:-apple-system,Segoe UI,Inter,sans-serif; font-size:12px; color:#94a3b8;">
-            Sent by ${orgName} via Gcode
+            Sent via Gcode for ${displayName}
           </p>
         </td>
       </tr>
@@ -145,13 +151,13 @@ export function magicLinkEmail(opts: { orgName: string; recipientName: string; l
 export function otpEmail(opts: { orgName: string; recipientName: string; code: string }) {
   const orgName = escapeHtml(opts.orgName);
   const recipientName = escapeHtml(opts.recipientName);
-  const subject = `Your Gcode verification code: ${opts.code}`;
-  const preheader = `Enter this code to finish creating ${opts.orgName} on Gcode - expires in 10 minutes.`;
+  const subject = `Your verification code: ${opts.code}`;
+  const preheader = `Enter this code to finish creating ${opts.orgName} - expires in 10 minutes.`;
 
   const text = [
     `Hi ${opts.recipientName},`,
     "",
-    `Your verification code to finish creating "${opts.orgName}" on Gcode is:`,
+    `Your verification code to finish creating "${opts.orgName}":`,
     "",
     opts.code,
     "",
@@ -171,16 +177,12 @@ export function otpEmail(opts: { orgName: string; recipientName: string; code: s
       <tr>
         <td align="center" style="padding:40px 16px;">
           <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="width:480px; max-width:100%; background-color:#ffffff; border:1px solid #e2e8f0; border-radius:12px;">
-            <tr>
-              <td style="padding:28px 32px; border-bottom:1px solid #e2e8f0;">
-                <span style="font-family:-apple-system,Segoe UI,Inter,sans-serif; font-size:20px; font-weight:700; color:#6366f1; letter-spacing:-0.02em;">Gcode</span>
-              </td>
-            </tr>
+        
             <tr>
               <td style="padding:32px; font-family:-apple-system,Segoe UI,Inter,sans-serif;">
                 <p style="margin:0 0 16px; font-size:15px; line-height:1.6; color:#0f172a;">Hi ${recipientName},</p>
                 <p style="margin:0 0 24px; font-size:15px; line-height:1.6; color:#0f172a;">
-                  Enter this code to finish creating <strong>${orgName}</strong> on Gcode:
+                  Enter this code to finish creating <strong>${orgName}</strong>:
                 </p>
                 <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
                   <tr>

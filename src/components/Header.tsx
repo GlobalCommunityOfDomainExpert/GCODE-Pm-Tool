@@ -7,7 +7,7 @@ export function Header({
   scopeLabel,
 }: {
   userName: string;
-  orgName: string;
+  orgName: string | null;
   roles: string[];
   scopeLabel: string | null;
 }) {
@@ -28,8 +28,12 @@ export function Header({
           <div className="min-w-0 text-right">
             <div className="truncate text-[13px] font-semibold text-text-primary">
               {userName}
-              <span className="mx-1.5 text-text-secondary">&middot;</span>
-              <span className="font-medium text-text-secondary">{orgName}</span>
+              {orgName && (
+                <>
+                  <span className="mx-1.5 text-text-secondary">&middot;</span>
+                  <span className="font-medium text-text-secondary">{orgName}</span>
+                </>
+              )}
             </div>
             <div className="truncate text-[11px] text-text-secondary">
               {roles.join(", ") || "No role"}

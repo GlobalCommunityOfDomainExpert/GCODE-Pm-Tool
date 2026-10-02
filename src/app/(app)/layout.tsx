@@ -16,9 +16,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await getSessionUserCached();
   if (!user) redirect("/login");
 
+  // Org name only for org-wide people (Admin / no scope); scoped users see their scope only.
+  const orgWide = user.roles.includes("Admin") || !user.scope;
   const [capabilities, orgName, scopeLabel] = await Promise.all([
     getCapabilitiesForRolesCached(user.organizationId, user.roles),
-    getOrgName(user.organizationId),
+    orgWide ? getOrgName(user.organizationId) : Promise.resolve(null),
     user.scope ? findNodeLabelForScope(user.scope) : Promise.resolve(null),
   ]);
 

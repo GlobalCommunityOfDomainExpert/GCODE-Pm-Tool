@@ -30,3 +30,16 @@ export async function findNodeLabelForScope(scope: string): Promise<string | nul
     { tags: [`node:${kind}:${id}`], revalidate: 300 }
   )();
 }
+
+// Name an outgoing email should use to say who the recipient is joining.
+// The org name is only for people with org-wide standing (Admin, or no
+// scope = whole org); everyone else is named by their scope node only, so
+// org identity isn't disclosed to someone who only sees one slice of it.
+export async function mailDisplayName(user: { organizationId: string; roles: string[]; scope: string | null }): Promise<string> {
+  const orgWide = user.roles.includes("Admin") || !user.scope;
+  if (orgWide) {
+    const org = await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { name: true } });
+    return org?.name || "your organization";
+  }
+  return (await findNodeLabelForScope(user.scope!)) || "your assigned scope";
+}

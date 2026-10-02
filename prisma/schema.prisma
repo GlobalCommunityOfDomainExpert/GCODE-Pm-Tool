@@ -196,6 +196,9 @@ model Invite {
   roles     String[]
   scope     String?
   status    String   @default("pending") // pending | accepted
+  // Snapshot of who sent (or last re-sent) the invite, shown in the email and on the invite page.
+  invitedByName String?
+  invitedByRole String?
   createdAt DateTime @default(now())
 }
 

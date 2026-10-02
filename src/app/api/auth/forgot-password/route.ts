@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { randomToken, hashToken } from "@/lib/auth/tokens";
 import { sendMail, magicLinkEmail } from "@/lib/mailer";
+import { mailDisplayName } from "@/lib/auth/scopeLabel";
 
 const TOKEN_TTL_MS = 72 * 60 * 60 * 1000; // 72h
 
@@ -33,10 +34,9 @@ export async function POST(req: NextRequest) {
         data: { inviteTokenHash: hashToken(rawToken), inviteTokenExpiresAt: new Date(Date.now() + TOKEN_TTL_MS) },
       });
 
-      const org = await prisma.organization.findUnique({ where: { id: user.organizationId } });
       const link = `${req.nextUrl.origin}/invite/${rawToken}`;
       const { subject, text, html } = magicLinkEmail({
-        orgName: org?.name || "your organization",
+        displayName: await mailDisplayName(user),
         recipientName: user.name,
         link,
         isReset: true,

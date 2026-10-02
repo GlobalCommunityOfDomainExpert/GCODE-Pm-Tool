@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { withCapability } from "@/lib/auth/requireCapability";
 import { randomToken, hashToken } from "@/lib/auth/tokens";
 import { sendMail, magicLinkEmail } from "@/lib/mailer";
+import { mailDisplayName } from "@/lib/auth/scopeLabel";
 
 const TOKEN_TTL_MS = 72 * 60 * 60 * 1000;
 
@@ -38,13 +39,14 @@ export const POST = withCapability("Manage Team Members", async (req: NextReques
         inviteTokenExpiresAt: new Date(Date.now() + TOKEN_TTL_MS),
       },
     });
-    await tx.invite.create({ data: { userId: user.id, name, email, roles, scope, status: "pending" } });
+    await tx.invite.create({
+      data: { userId: user.id, name, email, roles, scope, status: "pending", invitedByName: admin.name, invitedByRole: admin.roles.join(", ") },
+    });
     return { user };
   });
 
-  const org = await prisma.organization.findUnique({ where: { id: admin.organizationId } });
   const link = `${req.nextUrl.origin}/invite/${rawToken}`;
-  const { subject, text, html } = magicLinkEmail({ orgName: org?.name || "your organization", recipientName: name, link, isReset: false });
+  const { subject, text, html } = magicLinkEmail({ displayName: await mailDisplayName({ organizationId: admin.organizationId, roles, scope }), recipientName: name, link, isReset: false, inviter: { name: admin.name, role: admin.roles.join(", ") } });
 
   let sent = true;
   try {

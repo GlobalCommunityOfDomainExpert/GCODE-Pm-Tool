@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthCard, AuthField, AuthError, AuthButton } from "@/components/auth/AuthCard";
 
-type InvitePreview = { name: string; email: string | null; roles: string[] };
+type InvitePreview = { name: string; email: string | null; roles: string[]; displayName: string; inviter: { name: string; role: string } | null };
 
 // The magic-link landing page - the only route a direct-invite email links
 // to. No code entry anywhere on this page (FR-6): the token in the URL is
@@ -62,7 +62,7 @@ export default function InvitePage({ params }: { params: { token: string } }) {
   }
 
   return (
-    <AuthCard title="Complete your registration" subtitle="You were personally invited. Set a password to finish creating your account.">
+    <AuthCard title="Complete your registration" subtitle={`${preview.inviter ? `${preview.inviter.name}${preview.inviter.role ? ` (${preview.inviter.role})` : ""} invited you` : "You were personally invited"} to join ${preview.displayName}. Set a password to finish creating your account.`}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <AuthField label="Full Name" value={preview.name} disabled />
         <AuthField label="Work Email" value={preview.email || ""} disabled />
