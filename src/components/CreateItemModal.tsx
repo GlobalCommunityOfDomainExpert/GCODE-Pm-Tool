@@ -19,6 +19,7 @@ import {
 import { LEVEL_ENDPOINT as ENDPOINT } from "@/lib/endpoints";
 import { LEVEL_ICON_PATH } from "@/lib/levelIcons";
 import type { ScopeKind } from "@/lib/auth/scope";
+import { NAME_MAX, DESCRIPTION_MAX } from "@/lib/limits";
 
 const INPUT_CLASS =
   "w-full rounded-md border border-border bg-white px-3 py-2.5 text-[13px] text-text-primary outline-none transition-shadow focus:border-primary focus:ring-2 focus:ring-primary/15";
@@ -83,6 +84,13 @@ export function CreateItemModal({
   const [logoData, setLogoData] = useState<string | null>(editItem?.logoData || null);
   const [logoError, setLogoError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // EN_004: in edit mode there's nothing to save until a field differs from
+  // what the modal opened with. Dates/ids are compared as plain strings.
+  const snapshot = () =>
+    JSON.stringify([name.trim(), description || "", accountable?.id || null, responsible?.id || null, status, priority, startDate || "", dueDate || "", logoData]);
+  const [initialSnapshot] = useState(snapshot);
+  const unchanged = isEdit && snapshot() === initialSnapshot;
 
   function handleLogoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -209,7 +217,7 @@ export function CreateItemModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || !name.trim()}
+            disabled={saving || !name.trim() || unchanged}
             className="flex items-center gap-2 rounded-sm bg-primary px-5 py-2.5 text-[13px] font-medium text-white hover:bg-primary-hover disabled:opacity-50"
           >
             {saving && <Spinner />}
@@ -224,9 +232,11 @@ export function CreateItemModal({
             autoFocus
             value={name}
             onChange={(e) => setName(e.target.value)}
+            maxLength={NAME_MAX}
             placeholder={`e.g. ${label} name`}
             className={INPUT_CLASS}
           />
+          <Counter value={name} max={NAME_MAX} />
         </Field>
 
         <Field label="Description (optional)" span2>
@@ -234,8 +244,10 @@ export function CreateItemModal({
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={3}
+            maxLength={DESCRIPTION_MAX}
             className={`${INPUT_CLASS} resize-y`}
           />
+          <Counter value={description} max={DESCRIPTION_MAX} />
         </Field>
 
         {level === "workspace" && (
@@ -331,6 +343,16 @@ function Field({ label, span2, children }: { label: string; span2?: boolean; chi
     <div className={span2 ? "col-span-2" : ""}>
       <label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-text-secondary">{label}</label>
       {children}
+    </div>
+  );
+}
+
+// "12/60" under a limited field; turns red when full so the cut-off isn't a surprise.
+function Counter({ value, max }: { value: string; max: number }) {
+  const len = [...value].length;
+  return (
+    <div data-testid="char-counter" className={`mt-1 text-right text-[11px] ${len >= max ? "text-danger" : "text-text-secondary"}`}>
+      {len}/{max}
     </div>
   );
 }

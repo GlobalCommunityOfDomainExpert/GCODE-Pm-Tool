@@ -321,6 +321,16 @@ model PendingOrgRegistration {
   createdAt    DateTime @default(now())
 }
 
+// One-time nonces from encrypted credential requests (src/lib/auth/payloadCrypto.ts).
+// The primary key makes a second use of a nonce fail atomically, across instances.
+// Rows only matter for ~2 minutes; expired ones are swept opportunistically.
+model AuthNonce {
+  nonce     String   @id
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
 // Exists so a real build can rate-limit/audit resets; the UI response is
 // identical whether or not a matching account was found.
 model PasswordResetRequest {

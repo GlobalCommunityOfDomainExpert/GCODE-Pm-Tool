@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readAuthBody } from "@/lib/auth/payloadCrypto";
 import { prisma } from "@/lib/prisma";
-import { hashPassword } from "@/lib/auth/password";
+import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { generateOtp, hashToken } from "@/lib/auth/tokens";
 import { OTP_TTL_MS, OTP_RESEND_COOLDOWN_MS } from "@/lib/auth/otp";
 import { sendMail, otpEmail } from "@/lib/mailer";
@@ -12,7 +13,9 @@ import { sendMail, otpEmail } from "@/lib/mailer";
 // /api/auth/register-org/verify-otp succeeds, which is where the
 // Organization + User actually get created.
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null);
+  const parsed = await readAuthBody(req);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
   const orgName = (body?.orgName || "").trim();
   const name = (body?.name || "").trim();
   const email = (body?.email || "").trim().toLowerCase();
@@ -37,7 +40,23 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const passwordHash = await hashPassword(password);
+  // This email already has a login with organizations on it: adding another org must prove
+  // the existing password (never silently creates a second identity or overrides it), and
+  // the new membership then shares that password. An Account with no memberships is stale
+  // debris - ignored, the new password simply claims it later.
+  const account = await prisma.account.findUnique({ where: { email }, include: { _count: { select: { users: true } } } });
+  let passwordHash: string;
+  if (account && account._count.users > 0) {
+    if (!(await verifyPassword(password, account.passwordHash))) {
+      return NextResponse.json(
+        { error: "That email already has an account. Enter your existing password to add this organization to it." },
+        { status: 409 }
+      );
+    }
+    passwordHash = account.passwordHash;
+  } else {
+    passwordHash = await hashPassword(password);
+  }
   const otp = generateOtp();
 
   await prisma.pendingOrgRegistration.upsert({

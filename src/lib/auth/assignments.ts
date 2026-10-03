@@ -19,17 +19,21 @@ export function assignmentsOfUser(user: {
 
 // Dual-write: call in the same transaction that writes User.roles / User.scope.
 // RoleAssignment is derived data, so replace-all is safe (and idempotent).
+export async function setRoleAssignments(tx: Prisma.TransactionClient, userId: string, assignments: Assignment[]): Promise<void> {
+  await tx.roleAssignment.deleteMany({ where: { userId } });
+  if (assignments.length === 0) return;
+  await tx.roleAssignment.createMany({
+    data: assignments.map(({ role, scope }) => ({ userId, role, scope })),
+    skipDuplicates: true,
+  });
+}
+
+// Single-scope convenience (join codes, org founder): every role on one scope.
 export async function syncRoleAssignments(
   tx: Prisma.TransactionClient,
   userId: string,
   roles: string[],
   scope: string | null
 ): Promise<void> {
-  await tx.roleAssignment.deleteMany({ where: { userId } });
-  const unique = [...new Set(roles)];
-  if (unique.length === 0) return;
-  await tx.roleAssignment.createMany({
-    data: unique.map((role) => ({ userId, role, scope })),
-    skipDuplicates: true,
-  });
+  await setRoleAssignments(tx, userId, [...new Set(roles)].map((role) => ({ role, scope })));
 }

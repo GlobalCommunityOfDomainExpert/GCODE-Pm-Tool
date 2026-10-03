@@ -4,11 +4,13 @@ import Image from "next/image";
 import Logo from "public/logo-dark.png"
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useCan } from "./PermissionsContext";
 
 const NAV_ITEMS = [{ href: "/workspaces", label: "Workspaces", icon: "M4 6h16M4 12h16M4 18h7" }];
 
-export function Sidebar({ canManageTeam }: { canManageTeam: boolean }) {
+export function Sidebar() {
   const pathname = usePathname();
+  const canManageTeam = useCan("Manage Team Members");
 
   return (
     <aside className="flex h-full w-sidebar shrink-0 flex-col border-r border-border bg-surface">

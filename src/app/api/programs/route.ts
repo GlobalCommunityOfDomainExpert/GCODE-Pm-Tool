@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertTextLimits } from "@/lib/validation";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withCapability, withSession, ApiError } from "@/lib/auth/requireCapability";
@@ -22,11 +23,12 @@ export const GET = withSession(async (req, _ctx, user) => {
   return NextResponse.json(programs);
 });
 
-export const POST = withCapability("Create/Edit Projects", async (req, _ctx, user) => {
+export const POST = withCapability("Create/Edit Programs", async (req, _ctx, user) => {
   const body = await req.json();
+  assertTextLimits(body);
   if (!body.initiativeId) return NextResponse.json({ error: "initiativeId is required" }, { status: 400 });
   await assertNodeInOrg("initiative", body.initiativeId, user.organizationId);
-  if (!(await canOnNode(user, "Create/Edit Projects", "initiative", body.initiativeId))) {
+  if (!(await canOnNode(user, "Create/Edit Programs", "initiative", body.initiativeId))) {
     throw new ApiError(403, "That initiative is outside your scope.");
   }
   await assertAssigneeAllowed(user.organizationId, "initiative", body.initiativeId, body.accountableId);

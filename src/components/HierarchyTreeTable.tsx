@@ -72,9 +72,11 @@ function TreeRow({
               <span className="w-5 shrink-0" />
             )}
             {isTask ? (
-              <span className="text-[14px] font-medium text-text-primary">{node.name}</span>
+              <span title={node.name} className="block max-w-[420px] truncate text-[14px] font-medium text-text-primary">
+                {node.name}
+              </span>
             ) : (
-              <Link href={rowPath} className="text-[14px] font-medium text-text-primary hover:text-primary">
+              <Link href={rowPath} title={node.name} className="block max-w-[420px] truncate text-[14px] font-medium text-text-primary hover:text-primary">
                 {node.name}
               </Link>
             )}

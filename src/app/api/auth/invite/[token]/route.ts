@@ -10,7 +10,17 @@ export async function GET(req: NextRequest, { params }: { params: { token: strin
       inviteTokenExpiresAt: { gt: new Date() },
       status: { not: "suspended" },
     },
-    select: { name: true, email: true, roles: true, scope: true, organizationId: true, invite: { select: { status: true, invitedByName: true, invitedByRole: true } } },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      roles: true,
+      scope: true,
+      organizationId: true,
+      accountId: true,
+      roleAssignments: { select: { role: true, scope: true } },
+      invite: { select: { status: true, invitedByName: true, invitedByRole: true } },
+    },
   });
 
   if (!user) {
@@ -20,5 +30,11 @@ export async function GET(req: NextRequest, { params }: { params: { token: strin
   const displayName = await mailDisplayName(user);
   const inv = user.invite;
   const inviter = inv?.status === "pending" && inv.invitedByName ? { name: inv.invitedByName, role: inv.invitedByRole || "" } : null;
-  return NextResponse.json({ name: user.name, email: user.email, roles: user.roles, displayName, inviter });
+
+  // Same rule complete-invite applies: a pending invite into an org for an email whose
+  // Account already has other memberships is a JOIN - the page asks for no password.
+  const otherMemberships = user.accountId ? await prisma.user.count({ where: { accountId: user.accountId, id: { not: user.id } } }) : 0;
+  const joinExisting = inv?.status === "pending" && otherMemberships > 0;
+
+  return NextResponse.json({ name: user.name, email: user.email, roles: user.roles, displayName, inviter, joinExisting });
 }

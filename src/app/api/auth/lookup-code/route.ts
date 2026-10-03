@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readAuthBody } from "@/lib/auth/payloadCrypto";
 import { prisma } from "@/lib/prisma";
 import { findNodeLabelForScope } from "@/lib/auth/scopeLabel";
 
 // Only ever resolves shared/temp codes (FR-5) - there is no personal branch,
 // since a direct invite arrives as a magic link and never touches this screen.
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null);
+  const parsed = await readAuthBody(req);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
   const code = (body?.code || "").trim().toUpperCase();
   if (!code) return NextResponse.json({ type: null });
 

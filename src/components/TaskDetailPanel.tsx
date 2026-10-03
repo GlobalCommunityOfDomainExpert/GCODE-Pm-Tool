@@ -7,6 +7,7 @@ import { PriorityBadge, Avatar } from "./Badges";
 import { mutate } from "./ActionToast";
 import { apiFetch } from "@/lib/client/apiFetch";
 import { Spinner } from "./Spinner";
+import { DESCRIPTION_MAX } from "@/lib/limits";
 
 const STATUS_COLOR: Record<string, string> = {
   "Not Started": "bg-slate-100 text-slate-600",
@@ -22,12 +23,16 @@ export function TaskDetailPanel({
   onClose,
   onEdit,
   onUpdated,
+  onDelete,
 }: {
   task: TaskItem;
   onClose: () => void;
   onEdit: () => void;
   onUpdated: (patch: Partial<TaskItem>) => void;
+  onDelete: () => void;
 }) {
+  // Unstamped = no rights; the server still enforces every write.
+  const perms = task.perms ?? { edit: false, delete: false, createChild: false, changeStatus: false };
   const [status, setStatus] = useState(task.status);
   const [description, setDescription] = useState(task.description || "");
   const [savingDescription, setSavingDescription] = useState(false);
@@ -110,7 +115,7 @@ export function TaskDetailPanel({
             <select
               value={status}
               onChange={(e) => handleStatusChange(e.target.value)}
-              disabled={savingStatus}
+              disabled={savingStatus || !perms.changeStatus}
               className={`rounded-full border-0 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide disabled:opacity-60 ${STATUS_COLOR[status] || "bg-slate-100 text-slate-600"}`}
             >
               {TASK_STATUSES.map((s) => (
@@ -123,6 +128,7 @@ export function TaskDetailPanel({
             <span className="text-[12px] font-mono text-text-secondary">{ticketCode}</span>
           </div>
           <div className="flex items-center gap-1">
+            {(perms.edit || perms.delete) && (
             <div ref={menuRef} className="relative">
               <button
                 onClick={() => setMenuOpen((v) => !v)}
@@ -137,18 +143,32 @@ export function TaskDetailPanel({
               </button>
               {menuOpen && (
                 <div className="absolute right-0 top-full z-10 mt-1 w-32 rounded-md border border-border bg-white py-1 shadow-card">
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      onEdit();
-                    }}
-                    className="block w-full px-3 py-1.5 text-left text-[13px] text-text-primary hover:bg-slate-100"
-                  >
-                    Edit
-                  </button>
+                  {perms.edit && (
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onEdit();
+                      }}
+                      className="block w-full px-3 py-1.5 text-left text-[13px] text-text-primary hover:bg-slate-100"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {perms.delete && (
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onDelete();
+                      }}
+                      className="block w-full px-3 py-1.5 text-left text-[13px] text-danger hover:bg-danger/10"
+                    >
+                      Delete
+                    </button>
+                  )}
                 </div>
               )}
             </div>
+            )}
             <button
               onClick={onClose}
               className="flex h-8 w-8 items-center justify-center rounded-md text-text-secondary hover:bg-slate-100"
@@ -185,7 +205,7 @@ export function TaskDetailPanel({
           <div>
             <div className="mb-1.5 flex items-center justify-between">
               <label className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Description</label>
-              {descriptionDirty && (
+              {perms.edit && descriptionDirty && (
                 <button
                   onClick={handleSaveDescription}
                   disabled={savingDescription}
@@ -199,6 +219,8 @@ export function TaskDetailPanel({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={6}
+              readOnly={!perms.edit}
+              maxLength={DESCRIPTION_MAX}
               placeholder="No description yet."
               className="w-full resize-y rounded-md border border-border px-3 py-2 text-[13px] outline-none focus:border-primary"
             />

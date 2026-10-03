@@ -8,6 +8,8 @@ import { randomBytes } from "crypto";
 const BASE = process.env.BASE_URL || "http://localhost:3100";
 const TAG = "__phase2_test__";
 const prisma = new PrismaClient();
+// Cleanup deletes ONLY the orgs this run created, by id - never by a name pattern.
+const createdOrgIds: string[] = [];
 let failed = 0;
 const check = (name: string, ok: boolean, extra = "") => {
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}${ok ? "" : "  " + extra}`);
@@ -33,6 +35,7 @@ const call = (cookie: string, path: string, method = "GET", body?: unknown) =>
 
 async function main() {
   const org = await prisma.organization.create({ data: { name: TAG } });
+  createdOrgIds.push(org.id);
   const ws = await prisma.workspace.create({ data: { organizationId: org.id, name: `${TAG}ws`, slug: `${TAG}-ws` } });
   const scope = `workspace:${ws.id}`;
   const admin = await mkUser(org.id, "Admin1", ["Admin"]);
@@ -43,7 +46,7 @@ async function main() {
   let r = await call(admin.cookie, "/api/team/invite", "POST", { name: "A", email: `a1@${TAG}.test`, roles: ["Admin"], scope });
   check("invite Admin+scope -> 400", r.status === 400, String(r.status));
   r = await call(admin.cookie, "/api/team/invite", "POST", { name: "P", email: `p1@${TAG}.test`, roles: ["Portfolio Manager"], scope });
-  check("invite Portfolio Manager+scope -> 400", r.status === 400, String(r.status));
+  check("invite Portfolio Manager+scope -> 201 (a scoped Portfolio Manager is allowed)", r.status === 201, String(r.status));
   r = await call(admin.cookie, "/api/team/invite", "POST", { name: "Mixed", email: `m1@${TAG}.test`, roles: ["Team Member", "Admin"], scope });
   check("invite [Team Member, Admin]+scope -> 400", r.status === 400, String(r.status));
   r = await call(admin.cookie, "/api/team/invite", "POST", { name: "Ok1", email: `ok1@${TAG}.test`, roles: ["Admin"] });
@@ -63,15 +66,13 @@ async function main() {
   r = await call(admin.cookie, "/api/team/invite-codes", "POST", { roles: ["Admin"], scope });
   check("invite-code Admin+scope -> 400", r.status === 400, String(r.status));
   r = await call(admin.cookie, "/api/team/invite-codes", "POST", { roles: ["Portfolio Manager"], scope });
-  check("invite-code Portfolio Manager+scope -> 400", r.status === 400, String(r.status));
+  check("invite-code Portfolio Manager+scope -> 201", r.status === 201, String(r.status));
   r = await call(admin.cookie, "/api/team/invite-codes", "POST", { roles: ["Team Member"], scope });
   check("invite-code Team Member+scope -> 201", r.status === 201, String(r.status));
   r = await call(admin.cookie, `/api/team/users/${target.id}`, "PATCH", { action: "edit", roles: ["Admin"], scope });
   check("edit -> Admin+scope -> 400", r.status === 400, String(r.status));
-  r = await call(admin.cookie, `/api/team/users/${target.id}`, "PATCH", { action: "edit", roles: ["Portfolio Manager"], scope });
-  check("edit -> Portfolio Manager+scope -> 400", r.status === 400, String(r.status));
   const still = await call(target.cookie, "/api/team/assignable-users");
-  check("rejected edits did not sign the target out", still.status === 200, String(still.status));
+  check("rejected edit did not sign the target out", still.status === 200, String(still.status));
 
   // ---- EN_018 revoke only on a real access change
   r = await call(admin.cookie, `/api/team/users/${target.id}`, "PATCH", { action: "edit", roles: ["Team Member"], scope });
@@ -110,9 +111,9 @@ async function main() {
 }
 
 async function cleanup() {
-  for (const o of await prisma.organization.findMany({ where: { name: TAG }, select: { id: true } })) {
-    await prisma.workspace.deleteMany({ where: { organizationId: o.id } });
-    await prisma.organization.delete({ where: { id: o.id } }); // users, sessions, invites, codes cascade
+  for (const id of createdOrgIds) {
+    await prisma.workspace.deleteMany({ where: { organizationId: id } });
+    await prisma.organization.delete({ where: { id } }); // users, sessions, invites, codes cascade
   }
 }
 main()

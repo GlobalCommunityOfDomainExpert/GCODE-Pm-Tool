@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useLiveRefresh } from "@/lib/client/useLiveRefresh";
 import {
   DndContext,
   PointerSensor,
@@ -19,6 +21,7 @@ import { TaskListView } from "./TaskListView";
 import { mutate } from "./ActionToast";
 import { apiFetch } from "@/lib/client/apiFetch";
 import { Spinner } from "./Spinner";
+import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 
 const COLUMN_COLOR: Record<string, string> = {
   "Not Started": "#64748b",
@@ -29,13 +32,32 @@ const COLUMN_COLOR: Record<string, string> = {
   "Yet To Update": "#94a3b8",
 };
 
-export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string; initialTasks: TaskItem[] }) {
+export function TaskKanbanBoard({
+  projectId,
+  initialTasks,
+  canCreateTask,
+}: {
+  projectId: string;
+  initialTasks: TaskItem[];
+  // The project's createChild perm - hides "+ Add Task", never the server check.
+  canCreateTask: boolean;
+}) {
   const [tasks, setTasks] = useState(initialTasks);
   const [viewingTask, setViewingTask] = useState<TaskItem | null>(null);
   const [editingTask, setEditingTask] = useState<TaskItem | null>(null);
+  const [deletingTask, setDeletingTask] = useState<TaskItem | null>(null);
   const [newTaskStatus, setNewTaskStatus] = useState<string | null>(null);
   const [mode, setMode] = useState<ViewMode>("cards");
   const [movingIds, setMovingIds] = useState<Set<string>>(new Set());
+  const router = useRouter();
+  const busy = movingIds.size > 0 || !!editingTask || !!deletingTask || !!newTaskStatus;
+
+  // EN_008: pick up other people's changes (focus + 30s) - never mid-drag or mid-edit.
+  useLiveRefresh(() => router.refresh(), { paused: busy });
+  useEffect(() => {
+    if (!busy) setTasks(initialTasks);
+  }, [initialTasks]); // eslint-disable-line react-hooks/exhaustive-deps -- only a new server payload should resync
+
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   async function handleDragEnd(event: DragEndEvent) {
@@ -44,6 +66,7 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
     if (!newStatus) return;
     const task = tasks.find((t) => t.id === taskId);
     if (!task || task.status === newStatus) return;
+    if (!task.perms?.changeStatus) return; // card isn't draggable for them; belt and braces
 
     setTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, status: newStatus } : t)));
     setMovingIds((prev) => new Set(prev).add(taskId));
@@ -94,6 +117,8 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
       description: s.description,
       startDate: s.startDate ? s.startDate.slice(0, 10) : null,
       dueDate: s.dueDate ? s.dueDate.slice(0, 10) : null,
+      // Edited: keep what the server stamped. Created: the creator can edit/delete/move it.
+      perms: editingTask?.perms ?? { edit: true, delete: true, createChild: false, changeStatus: true },
     };
     if (editingTask) {
       setTasks((prev) => prev.map((t) => (t.id === editingTask.id ? task : t)));
@@ -118,7 +143,7 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
                   status={status}
                   tasks={tasks.filter((t) => t.status === status)}
                   movingIds={movingIds}
-                  onAddTask={() => setNewTaskStatus(status)}
+                  onAddTask={canCreateTask ? () => setNewTaskStatus(status) : undefined}
                   onTaskClick={setViewingTask}
                 />
               ))}
@@ -138,6 +163,26 @@ export function TaskKanbanBoard({ projectId, initialTasks }: { projectId: string
             setViewingTask(null);
           }}
           onUpdated={(patch) => patchTask(viewingTask.id, patch)}
+          onDelete={() => {
+            setDeletingTask(viewingTask);
+            setViewingTask(null);
+          }}
+        />
+      )}
+
+      {deletingTask && (
+        <ConfirmDeleteModal
+          label="Task"
+          itemName={deletingTask.title}
+          onCancel={() => setDeletingTask(null)}
+          onConfirm={async () => {
+            const target = deletingTask;
+            const res = await apiFetch(`/api/tasks/${target.id}`, { method: "DELETE" });
+            if (await mutate(res, { success: "Task deleted.", failure: "Couldn't delete this task." })) {
+              setTasks((prev) => prev.filter((t) => t.id !== target.id));
+            }
+            setDeletingTask(null);
+          }}
         />
       )}
 
@@ -168,7 +213,7 @@ function Column({
   status: string;
   tasks: TaskItem[];
   movingIds: Set<string>;
-  onAddTask: () => void;
+  onAddTask?: () => void;
   onTaskClick: (t: TaskItem) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
@@ -188,19 +233,19 @@ function Column({
         {tasks.map((task) => (
           <TaskCard key={task.id} task={task} moving={movingIds.has(task.id)} onClick={() => onTaskClick(task)} />
         ))}
-        <button
-          onClick={onAddTask}
-          className="w-full py-2 text-center text-xs text-text-secondary hover:text-primary"
-        >
-          + Add Task
-        </button>
+        {onAddTask && (
+          <button onClick={onAddTask} className="w-full py-2 text-center text-xs text-text-secondary hover:text-primary">
+            + Add Task
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
 function TaskCard({ task, moving, onClick }: { task: TaskItem; moving: boolean; onClick: () => void }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id });
+  const canMove = !!task.perms?.changeStatus;
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id, disabled: !canMove });
   const style = transform
     ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)`, opacity: isDragging ? 0.4 : 1, zIndex: isDragging ? 10 : undefined }
     : undefined;
@@ -212,10 +257,12 @@ function TaskCard({ task, moving, onClick }: { task: TaskItem; moving: boolean; 
       {...listeners}
       {...attributes}
       onClick={onClick}
-      className={`mb-3 cursor-grab rounded-md border border-border bg-white p-3 shadow-card transition-opacity ${moving ? "opacity-60" : ""}`}
+      className={`mb-3 ${canMove ? "cursor-grab" : "cursor-pointer"} rounded-md border border-border bg-white p-3 shadow-card transition-opacity ${moving ? "opacity-60" : ""}`}
     >
       <div className="mb-2 flex items-center justify-between gap-2 text-[13px] font-medium text-text-primary">
-        <span>{task.title}</span>
+        <span title={task.title} className="line-clamp-2 min-w-0 break-words">
+          {task.title}
+        </span>
         {moving && <Spinner className="h-3 w-3 shrink-0 text-text-secondary" />}
       </div>
       <div className="flex items-center justify-between">

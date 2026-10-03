@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { BUILT_IN_ROLES } from "@/lib/auth/capabilityConstants";
 import type { ScopeNode, ScopeOption, TeamUser } from "./types";
 import { EditUserModal } from "./EditUserModal";
 import { mutate } from "../ActionToast";
 import { apiFetch } from "@/lib/client/apiFetch";
+import { ConfirmActionModal } from "../ConfirmActionModal";
 import { Spinner } from "../Spinner";
 import { Skeleton } from "../Skeleton";
 
@@ -25,6 +27,35 @@ function initials(name: string) {
   return name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase() || "?";
 }
 
+function AccessCell({ access }: { access: { role: string; label: string }[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const shown = expanded ? access : access.slice(0, 2);
+  const hidden = access.length - 2;
+  return (
+    <div data-testid="access-cell" className="flex max-w-[360px] flex-wrap items-center gap-1">
+      {shown.map((a, i) => (
+        <span
+          key={i}
+          title={`${a.role} - ${a.label}`}
+          className="max-w-[170px] truncate rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary"
+        >
+          {a.role} <span className="text-primary/70">· {a.label}</span>
+        </span>
+      ))}
+      {hidden > 0 && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className="rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-text-secondary hover:bg-slate-100"
+        >
+          {expanded ? "Show less" : `+${hidden}`}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export function DirectoryTab({
   users,
   currentUserId,
@@ -34,7 +65,6 @@ export function DirectoryTab({
   onSearchChange,
   roleFilter,
   onRoleFilterChange,
-  allRoles,
   loading,
   initialLoad,
   onChanged,
@@ -47,7 +77,6 @@ export function DirectoryTab({
   onSearchChange: (v: string) => void;
   roleFilter: string;
   onRoleFilterChange: (v: string) => void;
-  allRoles: string[];
   loading: boolean;
   initialLoad?: boolean;
   onChanged: () => void;
@@ -56,6 +85,7 @@ export function DirectoryTab({
   const [menuRect, setMenuRect] = useState<{ top: number; right: number } | null>(null);
   const [editing, setEditing] = useState<TeamUser | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<{ id: string; action: "delete" | "suspend"; name: string } | null>(null);
 
   function openMenu(e: React.MouseEvent<HTMLButtonElement>, id: string) {
     if (menuFor === id) {
@@ -75,10 +105,17 @@ export function DirectoryTab({
     reset: "Password reset link sent.",
   };
 
-  async function act(id: string, action: string) {
-    if (action === "delete" && !confirm("Remove this teammate from the team?")) return;
-    if (action === "suspend" && !confirm("Deactivate this user? They won't be able to sign in until reactivated.")) return;
+  // delete / suspend are destructive: ask first, in the app (EN_010), then run perform().
+  function act(id: string, action: string) {
+    if (action === "delete" || action === "suspend") {
+      setMenuFor(null);
+      setConfirming({ id, action, name: users.find((u) => u.id === id)?.name || "this teammate" });
+      return;
+    }
+    return perform(id, action);
+  }
 
+  async function perform(id: string, action: string) {
     setBusy(id);
     setMenuFor(null);
     try {
@@ -97,10 +134,17 @@ export function DirectoryTab({
     }
   }
 
-  function scopeLabel(u: TeamUser) {
-    if (!u.scope) return "Whole Org";
-    const found = scopeOptions.find((o) => o.value === u.scope);
-    return found?.label || "Whole Org";
+  function scopeLabel(scope: string | null) {
+    if (!scope) return "Whole Org";
+    const found = scopeOptions.find((o) => o.value === scope);
+    return found?.label || "Unknown scope";
+  }
+
+  // One chip per role-on-scope. The first two show inline, the rest sit behind
+  // a "+N" toggle so a many-scope person doesn't blow the row up (EN_014).
+  function accessOf(u: TeamUser) {
+    const rows = u.roleAssignments?.length ? u.roleAssignments : u.roles.map((role) => ({ role, scope: u.scope }));
+    return rows.map((r) => ({ role: r.role, label: scopeLabel(r.scope) }));
   }
 
   return (
@@ -114,7 +158,7 @@ export function DirectoryTab({
         />
         <select value={roleFilter} onChange={(e) => onRoleFilterChange(e.target.value)} className="rounded-sm border border-border px-3 py-1.5 text-[13px]">
           <option value="">All Roles</option>
-          {allRoles.map((r) => (
+          {BUILT_IN_ROLES.map((r) => (
             <option key={r} value={r}>
               {r}
             </option>
@@ -138,15 +182,15 @@ export function DirectoryTab({
       ) : users.length === 0 ? (
         <div className="p-12 text-center text-[13px] text-text-secondary">No teammates match this search.</div>
       ) : (
+        <div className="overflow-x-auto">
         <table className="w-full border-collapse text-left">
           <thead>
             <tr className="border-b border-border bg-app text-[11px] uppercase tracking-wide text-text-secondary">
               <th className="px-6 py-3 font-semibold">Team Member</th>
-              <th className="px-6 py-3 font-semibold">Role</th>
-              <th className="px-6 py-3 font-semibold">Scope</th>
+              <th className="px-6 py-3 font-semibold">Access</th>
               <th className="px-6 py-3 font-semibold">Joined Via</th>
               <th className="px-6 py-3 font-semibold">Status</th>
-              <th className="px-6 py-3 text-right font-semibold">Actions</th>
+              <th className="sticky right-0 bg-app px-6 py-3 text-right font-semibold">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -170,20 +214,13 @@ export function DirectoryTab({
                     </div>
                   </td>
                   <td className="px-6 py-3">
-                    <div className="flex flex-wrap gap-1">
-                      {u.roles.map((r) => (
-                        <span key={r} className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
-                          {r}
-                        </span>
-                      ))}
-                    </div>
+                    <AccessCell access={accessOf(u)} />
                   </td>
-                  <td className="px-6 py-3 text-[13px] text-text-secondary">{scopeLabel(u)}</td>
                   <td className={`px-6 py-3 text-[12px] ${src.color}`}>{src.text}</td>
                   <td className="px-6 py-3 text-[13px]">
                     <span className={STATUS_COLOR[u.status]}>● {u.status === "invited" ? "invited (pending)" : u.status}</span>
                   </td>
-                  <td className="px-6 py-3 text-right">
+                  <td className="sticky right-0 bg-surface px-6 py-3 text-right">
                     {busy === u.id ? (
                       <Spinner className="ml-auto h-4 w-4 text-text-secondary" />
                     ) : (
@@ -236,6 +273,25 @@ export function DirectoryTab({
             })}
           </tbody>
         </table>
+        </div>
+      )}
+
+      {confirming && (
+        <ConfirmActionModal
+          title={confirming.action === "delete" ? "Remove teammate?" : "Deactivate user?"}
+          message={
+            confirming.action === "delete"
+              ? `Remove ${confirming.name} from the team? This can't be undone.`
+              : `Deactivate ${confirming.name}? They won't be able to sign in until reactivated.`
+          }
+          confirmLabel={confirming.action === "delete" ? "Remove" : "Deactivate"}
+          onCancel={() => setConfirming(null)}
+          onConfirm={async () => {
+            const { id, action } = confirming;
+            setConfirming(null);
+            await perform(id, action);
+          }}
+        />
       )}
 
       {editing && (

@@ -28,6 +28,18 @@ export async function assertCanOnNode(
   if (!(await canOnNode(user, capability, kind, nodeId))) throw new ApiError(403, message);
 }
 
+// Top-level creates (a new Workspace) have no parent node to be "inside", so
+// the capability has to come from an assignment that covers the whole org.
+// A scoped assignment could otherwise create a workspace it can't even see.
+export async function canOnOrg(user: Actor, capability: Capability): Promise<boolean> {
+  for (const a of user.assignments) {
+    if (a.scope) continue;
+    const caps = await getCapabilitiesForRoles(user.organizationId, [a.role]);
+    if (caps.has(capability)) return true;
+  }
+  return false;
+}
+
 // Whole-org standing: an Admin, or anyone holding any unscoped assignment.
 export function isOrgWide(user: Pick<SessionUser, "assignments">): boolean {
   return user.assignments.some((a) => a.role === "Admin" || !a.scope);

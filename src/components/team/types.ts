@@ -4,6 +4,8 @@ export type TeamUser = {
   email: string | null;
   roles: string[];
   scope: string | null;
+  // One row per role-on-scope. roles/scope above are the legacy union/first-scope view.
+  roleAssignments?: { role: string; scope: string | null }[];
   status: "active" | "invited" | "suspended";
   source: "org-founder" | "admin-invite" | "invite-code";
   inviteCode: { code: string } | null;

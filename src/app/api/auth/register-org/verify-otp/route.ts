@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readAuthBody } from "@/lib/auth/payloadCrypto";
 import { prisma } from "@/lib/prisma";
 import { hashToken } from "@/lib/auth/tokens";
 import { createSession } from "@/lib/auth/session";
 import { syncRoleAssignments } from "@/lib/auth/assignments";
+import { linkOrCreateAccount } from "@/lib/auth/account";
 
 const MAX_ATTEMPTS = 5;
 
@@ -20,7 +22,9 @@ const MAX_ATTEMPTS = 5;
 // one to whichever unrelated org happens to register next would be exactly
 // the cross-tenant leak multi-tenancy exists to prevent.
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null);
+  const parsed = await readAuthBody(req);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
   const email = (body?.email || "").trim().toLowerCase();
   const otp = (body?.otp || "").trim();
 
@@ -61,6 +65,10 @@ export async function POST(req: NextRequest) {
         source: "org-founder",
       },
     });
+    // Share the email's login across organizations (register-org copied the Account's own
+    // hash when the person proved it, so the hashes are equal); a brand-new email gets a new Account.
+    const accountId = await linkOrCreateAccount(tx, pending.email, pending.passwordHash);
+    if (accountId) await tx.user.update({ where: { id: user.id }, data: { accountId } });
     await syncRoleAssignments(tx, user.id, ["Admin"], null);
     await tx.pendingOrgRegistration.delete({ where: { email } });
     return { organization, user };

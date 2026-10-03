@@ -1,16 +1,22 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { randomToken } from "./tokens";
 import { assignmentsOfUser, type Assignment } from "./assignments";
 
 const COOKIE_NAME = "gcode_session";
 export const SESSION_COOKIE = COOKIE_NAME;
+// Which membership (organization) this browser last used - lets a login with
+// several memberships open straight into it instead of asking every time.
+export const LAST_ORG_COOKIE = "gcode_last_org";
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 export type SessionUser = {
   id: string;
   organizationId: string;
+  // The login identity this membership belongs to (null = standalone user / guest).
+  accountId: string | null;
   name: string;
   email: string | null;
   // Union of every assigned role - display and coarse "holds this capability
@@ -37,6 +43,17 @@ export async function createSession(userId: string): Promise<void> {
     path: "/",
     expires: expiresAt,
   });
+
+  const member = await prisma.user.findUnique({ where: { id: userId }, select: { organizationId: true } });
+  if (member) {
+    cookies().set(LAST_ORG_COOKIE, member.organizationId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 365 * 24 * 60 * 60,
+    });
+  }
 }
 
 // Safe to call from Server Components (read-only) and Route Handlers alike.
@@ -65,6 +82,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   return {
     id: user.id,
     organizationId: user.organizationId,
+    accountId: user.accountId,
     name: user.name,
     email: user.email,
     roles: [...new Set(assignments.map((a) => a.role))],
@@ -80,6 +98,15 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 // Server Component tree where React.cache isn't valid (see the note above).
 // Only import getSessionUserCached from layout.tsx/page.tsx files.
 export const getSessionUserCached = cache(getSessionUser);
+
+// For pages under (app): the layout already redirects an unauthenticated visitor, but
+// Next renders a layout and its page concurrently, so the page can still run in the
+// instant a session is gone (e.g. mid org-switch). Redirect instead of throwing.
+export async function requireUser(): Promise<SessionUser> {
+  const user = await getSessionUserCached();
+  if (!user) redirect("/login");
+  return user;
+}
 
 export async function destroySession(): Promise<void> {
   const id = cookies().get(COOKIE_NAME)?.value;

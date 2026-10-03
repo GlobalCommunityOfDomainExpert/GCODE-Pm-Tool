@@ -1,7 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "./prisma";
 import { getScopeChain } from "./auth/scope";
-import type { HierarchyCardItem, HierarchyLevel, Assignee, TaskItem, TreeNode } from "./types";
+import type { HierarchyCardItem, HierarchyLevel, Assignee, Perms, TaskItem, TreeNode } from "./types";
 
 // Accountable/responsible now point at User, which also carries
 // passwordHash/inviteTokenHash/etc - select only the fields the UI needs
@@ -116,6 +116,7 @@ export function toCardItem(node: {
   status: string | null;
   accountable: { id: string; name: string; email: string | null } | null;
   logoData?: string | null;
+  perms?: Perms;
   initiatives?: unknown[];
   programs?: unknown[];
   projects?: unknown[];
@@ -134,6 +135,7 @@ export function toCardItem(node: {
     progress,
     done,
     total,
+    perms: node.perms,
   };
 }
 
@@ -149,6 +151,7 @@ type TreeSourceNode = {
   title?: string | null;
   status?: string | null;
   priority?: string | null;
+  perms?: Perms;
   dueDate?: Date | null;
   accountable?: { id: string; name: string; email: string | null } | null;
   responsible?: { id: string; name: string; email: string | null } | null;
@@ -267,6 +270,7 @@ export function toTreeNode(node: TreeSourceNode, level: HierarchyLevel): TreeNod
     priority: isTask ? node.priority ?? null : null,
     dueDate: isTask && node.dueDate ? new Date(node.dueDate).toISOString().slice(0, 10) : null,
     progress,
+    perms: node.perms,
     children,
   };
 }
@@ -280,6 +284,7 @@ export function toTaskItem(t: {
   description: string | null;
   startDate: Date | string | null;
   dueDate: Date | string | null;
+  perms?: Perms;
 }): TaskItem {
   return {
     id: t.id,
@@ -297,5 +302,6 @@ export function toTaskItem(t: {
     // correctly for its own dueDate a few lines up.
     startDate: t.startDate ? new Date(t.startDate).toISOString().slice(0, 10) : null,
     dueDate: t.dueDate ? new Date(t.dueDate).toISOString().slice(0, 10) : null,
+    perms: t.perms,
   };
 }

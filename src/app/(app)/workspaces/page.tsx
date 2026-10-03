@@ -1,5 +1,6 @@
 import { getAllWorkspaces, scopeFilterWorkspaces, toCardItem, toTreeNode } from "@/lib/tree";
-import { getSessionUserCached } from "@/lib/auth/session";
+import { requireUser } from "@/lib/auth/session";
+import { buildPermResolver, getPerms, stampPerms } from "@/lib/auth/perms";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PageHeader } from "@/components/PageHeader";
 import { HierarchyLevelClient } from "@/components/HierarchyLevelClient";
@@ -7,9 +8,11 @@ import { HierarchyLevelClient } from "@/components/HierarchyLevelClient";
 export const dynamic = "force-dynamic";
 
 export default async function WorkspacesPage() {
-  const user = (await getSessionUserCached())!; // (app)/layout.tsx already guarantees a session here
+  const user = await requireUser();
   const allWorkspaces = await getAllWorkspaces(user.organizationId);
   const workspaces = await scopeFilterWorkspaces(allWorkspaces, user.assignments);
+  const resolver = await buildPermResolver(user);
+  workspaces.forEach((w) => stampPerms(w as never, "workspace", resolver));
 
   return (
     <div>
@@ -22,6 +25,7 @@ export default async function WorkspacesPage() {
         childLevel="initiative"
         basePath="/workspaces"
         parentId={null}
+        canCreate={resolver.canCreateWorkspace}
       />
     </div>
   );

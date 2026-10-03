@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { assertTextLimits } from "@/lib/validation";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { withCapability, withSession } from "@/lib/auth/requireCapability";
+import { withCapability, withSession, ApiError } from "@/lib/auth/requireCapability";
+import { canOnOrg } from "@/lib/auth/access";
 import { assertAssigneeAllowed } from "@/lib/auth/scope";
 import { slugify, uniqueSlug } from "@/lib/slug";
 
@@ -26,7 +28,11 @@ export const GET = withSession(async (_req, _ctx, user) => {
 });
 
 export const POST = withCapability("Create/Edit Workspaces", async (req, _ctx, user) => {
+  if (!(await canOnOrg(user, "Create/Edit Workspaces"))) {
+    throw new ApiError(403, "Only organization-wide access can create a workspace.");
+  }
   const body = await req.json();
+  assertTextLimits(body);
   // A brand-new Workspace has no parent to scope an assignee against - only
   // org-wide (unscoped) teammates are eligible, see assertAssigneeAllowed.
   await assertAssigneeAllowed(user.organizationId, null, null, body.accountableId);

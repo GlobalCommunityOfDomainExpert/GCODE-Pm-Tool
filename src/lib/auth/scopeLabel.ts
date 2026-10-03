@@ -1,6 +1,7 @@
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { parseScope } from "./scope";
+import { assignmentsOfUser } from "./assignments";
 
 // Human label for a scope string, e.g. "Product Platform (workspace)" -
 // used by the temp-code join preview so people see what they're about to get,
@@ -31,15 +32,23 @@ export async function findNodeLabelForScope(scope: string): Promise<string | nul
   )();
 }
 
-// Name an outgoing email should use to say who the recipient is joining.
-// The org name is only for people with org-wide standing (Admin, or no
-// scope = whole org); everyone else is named by their scope node only, so
-// org identity isn't disclosed to someone who only sees one slice of it.
-export async function mailDisplayName(user: { organizationId: string; roles: string[]; scope: string | null }): Promise<string> {
-  const orgWide = user.roles.includes("Admin") || !user.scope;
+// Name an outgoing email / the invite page should use for where the recipient
+// is going. The org name is only for people with org-wide standing (an Admin,
+// or any whole-org assignment); everyone else is named by their scope node(s)
+// only, so org identity isn't disclosed to someone who only sees a slice of it.
+export async function mailDisplayName(user: {
+  organizationId: string;
+  roles: string[];
+  scope: string | null;
+  roleAssignments?: { role: string; scope: string | null }[];
+}): Promise<string> {
+  const assignments = assignmentsOfUser(user);
+  const orgWide = assignments.some((a) => a.role === "Admin" || !a.scope);
   if (orgWide) {
     const org = await prisma.organization.findUnique({ where: { id: user.organizationId }, select: { name: true } });
     return org?.name || "your organization";
   }
-  return (await findNodeLabelForScope(user.scope!)) || "your assigned scope";
+  const scopes = [...new Set(assignments.map((a) => a.scope as string))];
+  const labels = (await Promise.all(scopes.map((sc) => findNodeLabelForScope(sc)))).filter(Boolean);
+  return labels.join(", ") || "your assigned scope";
 }

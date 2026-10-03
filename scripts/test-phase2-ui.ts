@@ -12,6 +12,8 @@ const BASE = process.env.BASE_URL || "http://localhost:3100";
 const TAG = "__phase2ui_test__";
 const LONG_NAME = "My Name is Lavya, I am an BE graduate from CU and this workspace name is deliberately far too long to fit a breadcrumb";
 const prisma = new PrismaClient();
+// Cleanup deletes ONLY the orgs this run created, by id - never by a name pattern.
+const createdOrgIds: string[] = [];
 let failed = 0;
 const check = (name: string, ok: boolean, extra = "") => {
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}${ok ? "" : "  " + extra}`);
@@ -30,11 +32,12 @@ async function mkUser(orgId: string, name: string, roles: string[], scope: strin
 
 async function main() {
   const org = await prisma.organization.create({ data: { name: TAG } });
+  createdOrgIds.push(org.id);
   const longWs = await prisma.workspace.create({ data: { organizationId: org.id, name: LONG_NAME, slug: "long-name-ws" } });
   const scope = `workspace:${longWs.id}`;
   const admin = await mkUser(org.id, "UiAdmin", ["Admin"]);
   const member = await mkUser(org.id, "UiMember", ["Team Member"], scope);
-  const victim = await mkUser(org.id, "UiVictim", ["Team Member"], scope);
+  const victim = await mkUser(org.id, "UiVictim", ["Admin"]);
 
   const browser = await chromium.launch();
   const ctxFor = async (sid: string, width = 1280) => {
@@ -102,9 +105,15 @@ async function main() {
     await page.context().close();
   }
 
-  // ---------------- error toast still works: scoped Team Member -> 403
+  // ---------------- error toast still works: server answers 403 (forced - the UI now hides
+  // controls a role can't use, so a real 403 can only come from stale permissions)
   {
-    const page = await (await ctxFor(member.sid)).newPage();
+    const page = await (await ctxFor(admin.sid)).newPage();
+    await page.route("**/api/workspaces", (route: any) =>
+      route.request().method() === "POST"
+        ? route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ error: "This workspace is outside your scope." }) })
+        : route.continue()
+    );
     await page.goto(`${BASE}/workspaces`, { waitUntil: "networkidle" });
     await page.getByRole("button", { name: /New Workspace/ }).click();
     await page.getByPlaceholder("e.g. Workspace name").fill("Nope");
@@ -145,20 +154,20 @@ async function main() {
     await page.getByRole("button", { name: "Directory & Assignments" }).click();
     await page.getByRole("button", { name: "+ Invite User" }).click();
     check("EN_013: scope selectable for Team Member (not locked)", (await page.locator('[data-testid="scope-locked"]').count()) === 0);
-    await page.getByRole("button", { name: "Admin", exact: true }).click();
+    await page.getByLabel("Role for access row 1").selectOption("Admin");
     check("EN_013: picking Admin locks scope to Whole Org", (await page.locator('[data-testid="scope-locked"]').count()) === 1);
-    await page.getByRole("button", { name: "Admin", exact: true }).click();
-    await page.getByRole("button", { name: "Portfolio Manager", exact: true }).click();
-    check("EN_019: picking Portfolio Manager locks scope", (await page.locator('[data-testid="scope-locked"]').count()) === 1);
+    await page.getByLabel("Role for access row 1").selectOption("Portfolio Manager");
+    check("Portfolio Manager keeps the scope selectable (whole-org is optional)", (await page.locator('[data-testid="scope-locked"]').count()) === 0);
     await page.keyboard.press("Escape");
 
-    // edit a user -> success toast (identical access, so no sign-out wording)
+    // edit a user -> success toast (Save stays disabled until something changes, EN_004)
     await page.reload({ waitUntil: "networkidle" });
     const row = page.locator("tr", { hasText: "UiMember" });
     await row.getByText("⋮").click();
     await page.getByRole("button", { name: /^Edit/ }).first().click();
+    await page.getByLabel("Role for access row 1").selectOption("Project Manager");
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    const t = page.locator('[data-tone="success"]', { hasText: "UiMember updated." });
+    const t = page.locator('[data-tone="success"]', { hasText: "UiMember" });
     await t.waitFor({ timeout: 8000 }).catch(() => {});
     check("edit teammate -> success toast", (await t.count()) === 1, (await toast(page).allTextContents()).join("|"));
 
@@ -180,9 +189,9 @@ async function main() {
 }
 
 async function cleanup() {
-  for (const o of await prisma.organization.findMany({ where: { name: TAG }, select: { id: true } })) {
-    await prisma.workspace.deleteMany({ where: { organizationId: o.id } });
-    await prisma.organization.delete({ where: { id: o.id } });
+  for (const id of createdOrgIds) {
+    await prisma.workspace.deleteMany({ where: { organizationId: id } });
+    await prisma.organization.delete({ where: { id } });
   }
 }
 main()

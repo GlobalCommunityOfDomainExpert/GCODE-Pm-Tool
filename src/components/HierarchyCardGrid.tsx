@@ -73,6 +73,7 @@ export function HierarchyCardGrid({
           key={item.id}
           className="relative flex h-full flex-col rounded-lg border border-border bg-surface p-5 shadow-card transition-transform hover:-translate-y-0.5 hover:shadow-md"
         >
+          {(item.perms?.edit || item.perms?.delete) && (
           <div data-kebab-container className="absolute right-3 top-3 z-20">
             <button
               onClick={(e) => {
@@ -92,6 +93,7 @@ export function HierarchyCardGrid({
 
             {menuOpenId === item.id && (
               <div className="absolute right-0 top-8 w-36 overflow-hidden rounded-md border border-border bg-white py-1 shadow-xl">
+                {item.perms?.edit && (
                 <button
                   onClick={() => {
                     setMenuOpenId(null);
@@ -105,6 +107,8 @@ export function HierarchyCardGrid({
                   </svg>
                   Edit
                 </button>
+                )}
+                {item.perms?.delete && (
                 <button
                   onClick={() => {
                     setMenuOpenId(null);
@@ -117,9 +121,11 @@ export function HierarchyCardGrid({
                   </svg>
                   Delete
                 </button>
+                )}
               </div>
             )}
           </div>
+          )}
 
           <Link href={`${basePath}/${item.slug}`} className="flex h-full flex-col">
             <div className="mb-4 flex items-start justify-between pr-8">
@@ -140,7 +146,9 @@ export function HierarchyCardGrid({
               )}
               {level === "project" || level === "task" ? <StatusBadge status={item.status || "On Track"} /> : null}
             </div>
-            <h3 className="mb-1 text-base font-semibold text-text-primary">{item.name}</h3>
+            <h3 title={item.name} className="mb-1 truncate text-base font-semibold text-text-primary">
+              {item.name}
+            </h3>
             <div className="mb-4 flex justify-between text-xs text-text-secondary">
               <span>
                 {item.childCount} {childLevel ? LEVEL_LABEL[childLevel] : ""}

@@ -8,6 +8,16 @@ export const LEVEL_LABEL: Record<HierarchyLevel, string> = {
   task: "Task",
 };
 
+// What the signed-in user may do to one node - stamped on the server (see
+// lib/auth/perms.ts) so the UI can hide controls their role can't use. A
+// courtesy only: every write route still enforces the real rule.
+export interface Perms {
+  edit: boolean;
+  delete: boolean;
+  createChild: boolean;
+  changeStatus?: boolean;
+}
+
 // Containers (L1-L4) reuse this shape; tasks (L5) are rendered by the Kanban board instead.
 export const CONTAINER_STATUSES = ["On Track", "At Risk", "In Progress", "To Do"] as const;
 export const TASK_STATUSES = ["Not Started", "In Progress", "Review Pending", "Paused", "Completed", "Yet To Update"] as const;
@@ -38,6 +48,7 @@ export interface HierarchyCardItem {
   progress: number;
   done: number;
   total: number;
+  perms?: Perms;
 }
 
 export interface TaskItem {
@@ -49,6 +60,7 @@ export interface TaskItem {
   description: string | null;
   startDate: string | null;
   dueDate: string | null;
+  perms?: Perms;
 }
 
 export interface Breadcrumb {
@@ -71,5 +83,6 @@ export interface TreeNode {
   priority: string | null; // tasks only
   dueDate: string | null; // tasks only
   progress: number;
+  perms?: Perms;
   children: TreeNode[];
 }

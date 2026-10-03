@@ -1,10 +1,11 @@
 "use client";
 
+import { securePost } from "@/lib/client/secureFetch";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AuthCard, AuthField, AuthError, AuthButton } from "@/components/auth/AuthCard";
 
-type InvitePreview = { name: string; email: string | null; roles: string[]; displayName: string; inviter: { name: string; role: string } | null };
+type InvitePreview = { name: string; email: string | null; roles: string[]; displayName: string; inviter: { name: string; role: string } | null; joinExisting?: boolean };
 
 // The magic-link landing page - the only route a direct-invite email links
 // to. No code entry anywhere on this page (FR-6): the token in the URL is
@@ -28,11 +29,7 @@ export default function InvitePage({ params }: { params: { token: string } }) {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/complete-invite", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: params.token, password }),
-      });
+      const res = await securePost("/api/auth/complete-invite", preview?.joinExisting ? { token: params.token } : { token: params.token, password });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "That link was already used or is no longer valid.");
@@ -62,7 +59,7 @@ export default function InvitePage({ params }: { params: { token: string } }) {
   }
 
   return (
-    <AuthCard title="Complete your registration" subtitle={`${preview.inviter ? `${preview.inviter.name}${preview.inviter.role ? ` (${preview.inviter.role})` : ""} invited you` : "You were personally invited"} to join ${preview.displayName}. Set a password to finish creating your account.`}>
+    <AuthCard title={preview.joinExisting ? `Join ${preview.displayName}` : "Complete your registration"} subtitle={`${preview.inviter ? `${preview.inviter.name}${preview.inviter.role ? ` (${preview.inviter.role})` : ""} invited you` : "You were personally invited"} to join ${preview.displayName}. ${preview.joinExisting ? `You'll join as ${preview.email} with your existing password.` : "Set a password to finish creating your account."}`}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <AuthField label="Full Name" value={preview.name} disabled />
         <AuthField label="Work Email" value={preview.email || ""} disabled />
@@ -73,10 +70,12 @@ export default function InvitePage({ params }: { params: { token: string } }) {
             </span>
           ))}
         </div>
+        {!preview.joinExisting && (
         <AuthField label="Create Password" type="password" placeholder="Create a password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+        )}
         <AuthError message={error} />
         <AuthButton type="submit" disabled={loading}>
-          {loading ? "Completing…" : "Complete Registration"}
+          {loading ? (preview.joinExisting ? "Joining…" : "Completing…") : preview.joinExisting ? `Join ${preview.displayName}` : "Complete Registration"}
         </AuthButton>
       </form>
     </AuthCard>

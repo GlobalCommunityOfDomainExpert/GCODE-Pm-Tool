@@ -1,5 +1,6 @@
 "use client";
 
+import { securePost } from "@/lib/client/secureFetch";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -23,11 +24,7 @@ export default function JoinPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/lookup-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-      });
+      const res = await securePost("/api/auth/lookup-code", { code });
       const data: LookupResult = await res.json();
       if (data.type !== "temp") {
         setError("That code is invalid, revoked, or fully used. Ask your admin for a new one.");
@@ -44,11 +41,7 @@ export default function JoinPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/join-with-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, code }),
-      });
+      const res = await securePost("/api/auth/join-with-code", { name, email, code });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "That code is invalid, revoked, or fully used.");

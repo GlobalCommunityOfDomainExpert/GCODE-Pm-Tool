@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readAuthBody } from "@/lib/auth/payloadCrypto";
 import { prisma } from "@/lib/prisma";
 import { createSession } from "@/lib/auth/session";
 import { syncRoleAssignments } from "@/lib/auth/assignments";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => null);
+  const parsed = await readAuthBody(req);
+  if (!parsed.ok) return parsed.response;
+  const body = parsed.body;
   const name = (body?.name || "").trim();
   const email = (body?.email || "").trim().toLowerCase();
   const code = (body?.code || "").trim().toUpperCase();

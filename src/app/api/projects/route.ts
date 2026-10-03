@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertTextLimits } from "@/lib/validation";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withCapability, withSession, ApiError } from "@/lib/auth/requireCapability";
@@ -24,6 +25,7 @@ export const GET = withSession(async (req, _ctx, user) => {
 
 export const POST = withCapability("Create/Edit Projects", async (req, _ctx, user) => {
   const body = await req.json();
+  assertTextLimits(body);
   if (!body.programId) return NextResponse.json({ error: "programId is required" }, { status: 400 });
   await assertNodeInOrg("program", body.programId, user.organizationId);
   if (!(await canOnNode(user, "Create/Edit Projects", "program", body.programId))) {

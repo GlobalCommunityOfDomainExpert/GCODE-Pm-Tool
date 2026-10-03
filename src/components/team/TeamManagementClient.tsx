@@ -8,6 +8,7 @@ import { InviteUserModal } from "./InviteUserModal";
 import type { InviteCode, ScopeNode, TeamUser } from "./types";
 import { showActionError, showActionSuccess } from "../ActionToast";
 import { apiFetch } from "@/lib/client/apiFetch";
+import { useLiveRefresh } from "@/lib/client/useLiveRefresh";
 import { flattenScopeTree } from "./types";
 
 type Tab = "users" | "roles" | "invites";
@@ -24,8 +25,8 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
   const [usersLoading, setUsersLoading] = useState(false);
   const [initialUsersLoad, setInitialUsersLoad] = useState(true);
 
-  const loadUsers = useCallback(async () => {
-    setUsersLoading(true);
+  const loadUsers = useCallback(async (silent = false) => {
+    if (!silent) setUsersLoading(true);
     try {
       const params = new URLSearchParams();
       if (search) params.set("q", search);
@@ -53,11 +54,12 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
     loadUsers();
   }, [loadUsers]);
 
+  // EN_008: someone else's invite/edit shows up on focus + every 30s, without a spinner.
+  useLiveRefresh(() => loadUsers(true), { paused: inviteModalOpen });
+
   useEffect(() => {
     if (tab === "invites") loadCodes();
   }, [tab, loadCodes]);
-
-  const allRoles = Array.from(new Set(users.flatMap((u) => u.roles)));
 
   return (
     <div>
@@ -104,10 +106,9 @@ export function TeamManagementClient({ currentUserId }: { currentUserId: string 
           onSearchChange={setSearch}
           roleFilter={roleFilter}
           onRoleFilterChange={setRoleFilter}
-          allRoles={allRoles}
           loading={usersLoading}
           initialLoad={initialUsersLoad}
-          onChanged={loadUsers}
+          onChanged={() => loadUsers()}
         />
       )}
       {tab === "roles" && <RoleDefinitionsTab />}

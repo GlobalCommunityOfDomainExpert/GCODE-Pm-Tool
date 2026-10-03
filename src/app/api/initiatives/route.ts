@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertTextLimits } from "@/lib/validation";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withCapability, withSession, ApiError } from "@/lib/auth/requireCapability";
@@ -22,11 +23,12 @@ export const GET = withSession(async (req, _ctx, user) => {
   return NextResponse.json(initiatives);
 });
 
-export const POST = withCapability("Create/Edit Workspaces", async (req, _ctx, user) => {
+export const POST = withCapability("Create/Edit Initiatives", async (req, _ctx, user) => {
   const body = await req.json();
+  assertTextLimits(body);
   if (!body.workspaceId) return NextResponse.json({ error: "workspaceId is required" }, { status: 400 });
   await assertNodeInOrg("workspace", body.workspaceId, user.organizationId);
-  if (!(await canOnNode(user, "Create/Edit Workspaces", "workspace", body.workspaceId))) {
+  if (!(await canOnNode(user, "Create/Edit Initiatives", "workspace", body.workspaceId))) {
     throw new ApiError(403, "That workspace is outside your scope.");
   }
   await assertAssigneeAllowed(user.organizationId, "workspace", body.workspaceId, body.accountableId);

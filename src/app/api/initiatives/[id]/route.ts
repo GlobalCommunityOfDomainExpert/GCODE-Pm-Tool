@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertTextLimits } from "@/lib/validation";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withCapability, ApiError } from "@/lib/auth/requireCapability";
@@ -7,13 +8,14 @@ import { canOnNode } from "@/lib/auth/access";
 import { assertNodeInOrg } from "@/lib/auth/org";
 import { slugify, uniqueSlug } from "@/lib/slug";
 
-export const PATCH = withCapability("Create/Edit Workspaces", async (req, { params }: { params: { id: string } }, user) => {
+export const PATCH = withCapability("Create/Edit Initiatives", async (req, { params }: { params: { id: string } }, user) => {
   await assertNodeInOrg("initiative", params.id, user.organizationId);
-  if (!(await canOnNode(user, "Create/Edit Workspaces", "initiative", params.id))) {
+  if (!(await canOnNode(user, "Create/Edit Initiatives", "initiative", params.id))) {
     throw new ApiError(403, "This initiative is outside your scope.");
   }
 
   const body = await req.json();
+  assertTextLimits(body);
   if ("accountableId" in body) {
     await assertAssigneeAllowed(user.organizationId, "initiative", params.id, body.accountableId);
   }
@@ -41,9 +43,9 @@ export const PATCH = withCapability("Create/Edit Workspaces", async (req, { para
   return NextResponse.json(initiative);
 });
 
-export const DELETE = withCapability("Create/Edit Workspaces", async (_req, { params }: { params: { id: string } }, user) => {
+export const DELETE = withCapability("Create/Edit Initiatives", async (_req, { params }: { params: { id: string } }, user) => {
   await assertNodeInOrg("initiative", params.id, user.organizationId);
-  if (!(await canOnNode(user, "Create/Edit Workspaces", "initiative", params.id))) {
+  if (!(await canOnNode(user, "Create/Edit Initiatives", "initiative", params.id))) {
     throw new ApiError(403, "This initiative is outside your scope.");
   }
   await prisma.initiative.delete({ where: { id: params.id } });

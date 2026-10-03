@@ -29,7 +29,9 @@ export function TaskListView({ tasks, onTaskClick }: { tasks: TaskItem[]; onTask
               onClick={() => onTaskClick(task)}
               className="flex cursor-pointer items-center gap-4 border-b border-border px-5 py-3 last:border-b-0 hover:bg-app"
             >
-              <div className="min-w-0 flex-[2] truncate text-[13px] font-medium text-text-primary">{task.title}</div>
+              <div title={task.title} className="min-w-0 flex-[2] truncate text-[13px] font-medium text-text-primary">
+                {task.title}
+              </div>
               <div className="flex-1">
                 <PriorityBadge priority={task.priority} />
               </div>

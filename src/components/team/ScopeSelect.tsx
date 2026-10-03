@@ -27,15 +27,17 @@ export function ScopeSelect({
   onChange,
   className,
   id,
+  label,
 }: {
   tree: ScopeNode[];
   value: string;
   onChange: (value: string) => void;
   className?: string;
   id?: string;
+  label?: string;
 }) {
   return (
-    <select id={id} value={value} onChange={(e) => onChange(e.target.value)} className={className}>
+    <select id={id} aria-label={label} value={value} onChange={(e) => onChange(e.target.value)} className={className}>
       <option value="">Whole Org</option>
       {tree.map((workspace) => (
         <optgroup key={workspace.value} label={workspace.label}>

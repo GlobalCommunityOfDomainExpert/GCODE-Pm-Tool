@@ -2,11 +2,18 @@
 // client components too (e.g. rendering the Role Definitions matrix, or a
 // role/capability picker), unlike capabilities.ts which pulls in the DB client.
 
+// Only capabilities some route actually enforces belong here - the matrix UI
+// and the RoleCapability seed both read this list. (View Workspaces, Comment &
+// Collaborate, Approve Requests and View Reports & Dashboards were removed:
+// nothing in this version checks them. Visibility comes from scope, not a
+// capability.) Add one back together with the feature that enforces it.
 export const CAPABILITY_GROUPS = [
-  { name: "Workspaces & Projects", items: ["View Workspaces", "Create/Edit Workspaces", "Create/Edit Projects", "Create/Edit Tasks"] },
-  { name: "Task Execution", items: ["Execute Assigned Tasks", "Comment & Collaborate"] },
-  { name: "Team & Administration", items: ["Manage Team Members", "Approve Requests"] },
-  { name: "Reporting", items: ["View Reports & Dashboards"] },
+  {
+    name: "Workspaces & Projects",
+    items: ["Create/Edit Workspaces", "Create/Edit Initiatives", "Create/Edit Programs", "Create/Edit Projects", "Create/Edit Tasks"],
+  },
+  { name: "Task Execution", items: ["Execute Assigned Tasks"] },
+  { name: "Team & Administration", items: ["Manage Team Members"] },
 ] as const;
 
 export const ALL_CAPABILITIES = CAPABILITY_GROUPS.flatMap((g) => g.items);
@@ -17,10 +24,10 @@ export type BuiltInRole = (typeof BUILT_IN_ROLES)[number];
 
 export const ROLE_CAPABILITY_MATRIX: Record<BuiltInRole, Capability[]> = {
   Admin: [...ALL_CAPABILITIES],
-  "Portfolio Manager": ["View Workspaces", "Create/Edit Workspaces", "Create/Edit Projects", "Comment & Collaborate", "View Reports & Dashboards"],
-  "Program Manager": ["View Workspaces", "Create/Edit Projects", "Create/Edit Tasks", "Comment & Collaborate", "View Reports & Dashboards"],
-  "Project Manager": ["View Workspaces", "Create/Edit Tasks", "Comment & Collaborate", "View Reports & Dashboards"],
-  "Team Member": ["View Workspaces", "Execute Assigned Tasks", "Comment & Collaborate"],
+  "Portfolio Manager": ["Create/Edit Workspaces", "Create/Edit Initiatives", "Create/Edit Programs", "Create/Edit Projects", "Create/Edit Tasks"],
+  "Program Manager": ["Create/Edit Programs", "Create/Edit Projects", "Create/Edit Tasks"],
+  "Project Manager": ["Create/Edit Tasks"],
+  "Team Member": ["Execute Assigned Tasks"],
 };
 
 // Role choices offered in pickers (invite modal, invite-code generator).

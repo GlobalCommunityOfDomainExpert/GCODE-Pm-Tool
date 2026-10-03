@@ -1,15 +1,17 @@
-import { UserMenu } from "./UserMenu";
+import { UserMenu, type OrgMembership } from "./UserMenu";
 
 export function Header({
   userName,
   orgName,
   roles,
   scopeLabel,
+  memberships,
 }: {
   userName: string;
   orgName: string | null;
   roles: string[];
   scopeLabel: string | null;
+  memberships: OrgMembership[];
 }) {
   const initials =
     userName
@@ -41,7 +43,7 @@ export function Header({
               {scopeLabel || "Whole Org"}
             </div>
           </div>
-          <UserMenu name={userName} initials={initials} />
+          <UserMenu name={userName} initials={initials} memberships={memberships} />
         </div>
       </div>
     </header>

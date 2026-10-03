@@ -26,7 +26,17 @@ export async function POST(req: NextRequest) {
     // by design), so instead: send every matching org a reset link of its
     // own - each email's subject/body already names its org, so the
     // recipient can tell them apart in their inbox.
-    const users = await prisma.user.findMany({ where: { email, status: "active" } });
+    const allUsers = await prisma.user.findMany({ where: { email, status: "active" }, include: { roleAssignments: true }, orderBy: { createdAt: "asc" } });
+    // The password belongs to the Account, so a reset on any membership resets it everywhere:
+    // one email per Account is enough (and avoids a pile of identical links). Unlinked rows
+    // are separate logins and each still gets their own.
+    const seenAccounts = new Set<string>();
+    const users = allUsers.filter((u) => {
+      if (!u.accountId) return true;
+      if (seenAccounts.has(u.accountId)) return false;
+      seenAccounts.add(u.accountId);
+      return true;
+    });
     for (const user of users) {
       const rawToken = randomToken();
       await prisma.user.update({

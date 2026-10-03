@@ -8,11 +8,14 @@ const origLoad = Module._load;
 Module._load = function (req: string, ...rest: unknown[]) {
   if (req === "next/cache") return { unstable_cache: (fn: unknown) => fn, revalidateTag() {} };
   if (req === "react") return { cache: (f: unknown) => f };
+  if (req === "next/navigation") return { redirect() { throw new Error("redirect"); }, notFound() { throw new Error("notFound"); } };
   return origLoad.call(this, req, ...rest);
 };
 
 import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
+// Cleanup deletes ONLY the orgs this run created, by id - never by a name pattern.
+const createdOrgIds: string[] = [];
 let failed = 0;
 function check(name: string, ok: boolean) {
   console.log(`${ok ? "PASS" : "FAIL"}  ${name}`);
@@ -26,6 +29,7 @@ async function main() {
 
   const tag = "__phase1_test__";
   const org0 = await prisma.organization.create({ data: { name: tag } });
+  createdOrgIds.push(org0.id);
   const org = org0.id;
   const mkWs = (n: string) =>
     prisma.workspace.create({
@@ -91,10 +95,9 @@ async function main() {
   process.exitCode = failed ? 1 : 0;
 }
 async function cleanup() {
-  const orgs = await prisma.organization.findMany({ where: { name: "__phase1_test__" }, select: { id: true } });
-  for (const o of orgs) {
-    await prisma.workspace.deleteMany({ where: { organizationId: o.id } }); // initiatives/programs/projects cascade
-    await prisma.organization.delete({ where: { id: o.id } });
+  for (const id of createdOrgIds) {
+    await prisma.workspace.deleteMany({ where: { organizationId: id } }); // initiatives/programs/projects cascade
+    await prisma.organization.delete({ where: { id } });
   }
 }
 main()

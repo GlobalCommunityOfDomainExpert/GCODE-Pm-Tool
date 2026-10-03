@@ -1,5 +1,6 @@
 "use client";
 import { apiFetch } from "@/lib/client/apiFetch";
+import { ConfirmActionModal } from "../ConfirmActionModal";
 import { mutate, showActionSuccess } from "../ActionToast";
 
 import { useState } from "react";
@@ -7,9 +8,9 @@ import { ROLE_CHOICES } from "@/lib/auth/capabilityConstants";
 import type { InviteCode, ScopeNode, ScopeOption } from "./types";
 import { ScopeSelect } from "./ScopeSelect";
 
-// Admin and Portfolio Manager are always whole-org (EN_013/EN_019); the server
-// rejects a scoped one with 400, this just stops the form offering it.
-const ORG_WIDE_ROLES = ["Admin", "Portfolio Manager"];
+// Admin is always whole-org (EN_013); the server rejects a scoped one with 400,
+// this just stops the form offering it. Portfolio Manager may be scoped.
+const ORG_WIDE_ROLES = ["Admin"];
 
 export function InviteCodesTab({
   codes,
@@ -29,6 +30,7 @@ export function InviteCodesTab({
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
+  const [revoking, setRevoking] = useState<string | null>(null);
 
   const lockedWholeOrg = ORG_WIDE_ROLES.includes(role);
 
@@ -61,7 +63,6 @@ export function InviteCodesTab({
   }
 
   async function handleRevoke(id: string) {
-    if (!confirm("Revoke this invite code? It will no longer work for new sign-ups.")) return;
     const res = await apiFetch(`/api/team/invite-codes/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -160,7 +161,7 @@ export function InviteCodesTab({
                       {copied === c.code ? "Copied" : "Copy"}
                     </button>
                     {!c.revoked && (
-                      <button onClick={() => handleRevoke(c.id)} className="rounded-sm border border-border px-3 py-1.5 text-[12px] text-danger hover:bg-slate-100">
+                      <button onClick={() => setRevoking(c.id)} className="rounded-sm border border-border px-3 py-1.5 text-[12px] text-danger hover:bg-slate-100">
                         Revoke
                       </button>
                     )}
@@ -171,6 +172,21 @@ export function InviteCodesTab({
           </div>
         )}
       </div>
+
+      {revoking && (
+        <ConfirmActionModal
+          title="Revoke invite code?"
+          message="It will no longer work for new sign-ups. People who already joined with it keep their access."
+          confirmLabel="Revoke"
+          onCancel={() => setRevoking(null)}
+          onConfirm={async () => {
+            const id = revoking;
+            setRevoking(null);
+            await handleRevoke(id);
+          }}
+        />
+      )}
     </div>
   );
 }
+

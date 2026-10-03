@@ -1,19 +1,14 @@
 "use client";
-import { apiFetch } from "@/lib/client/apiFetch";
 
 import { useState } from "react";
-import { BUILT_IN_ROLES } from "@/lib/auth/capabilityConstants";
+import { apiFetch } from "@/lib/client/apiFetch";
 import type { ScopeNode } from "./types";
-import { ScopeSelect } from "./ScopeSelect";
+import { RoleAssignmentsEditor, NEW_ROW, assignmentsError, toPayload, type AssignmentRow } from "./RoleAssignmentsEditor";
 import { Modal } from "../Modal";
 import { Spinner } from "../Spinner";
 
 const INPUT_CLASS =
   "rounded-md border border-border px-3 py-2.5 text-[13px] outline-none transition-shadow focus:border-primary focus:ring-2 focus:ring-primary/15";
-
-// Admin and Portfolio Manager are always whole-org (EN_013/EN_019); the server
-// rejects a scoped one with 400, this just stops the form offering it.
-const ORG_WIDE_ROLES = ["Admin", "Portfolio Manager"];
 
 export function InviteUserModal({
   scopeTree,
@@ -26,25 +21,21 @@ export function InviteUserModal({
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [roles, setRoles] = useState<string[]>(["Team Member"]);
-  const [scope, setScope] = useState("");
+  const [rows, setRows] = useState<AssignmentRow[]>([{ ...NEW_ROW }]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const lockedWholeOrg = roles.some((r) => ORG_WIDE_ROLES.includes(r));
-
-  function toggleRole(role: string) {
-    setRoles((prev) => (prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]));
-  }
+  const invalid = assignmentsError(rows);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (invalid) return;
     setError(null);
     setLoading(true);
     try {
       const res = await apiFetch("/api/team/invite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, roles, scope: lockedWholeOrg ? null : scope || null }),
+        body: JSON.stringify({ name, email, assignments: toPayload(rows) }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -63,6 +54,7 @@ export function InviteUserModal({
       title="Invite team member"
       subtitle="Sends a magic link to set a password and join with the role below."
       closeDisabled={loading}
+      maxWidth="600px"
       icon={
         <svg viewBox="0 0 24 24" className="h-4.5 w-4.5" fill="none" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8zM20 8v6M23 11h-6" />
@@ -76,7 +68,7 @@ export function InviteUserModal({
           <button
             form="invite-user-form"
             type="submit"
-            disabled={loading}
+            disabled={loading || !!invalid}
             className="flex items-center gap-2 rounded-sm bg-primary px-5 py-2 text-[13px] font-medium text-white hover:bg-primary-hover disabled:opacity-60"
           >
             {loading && <Spinner />}
@@ -97,31 +89,7 @@ export function InviteUserModal({
           <span className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Email</span>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="alex@company.com" className={INPUT_CLASS} />
         </label>
-        <div className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Role(s)</span>
-          <div className="flex flex-wrap gap-2">
-            {BUILT_IN_ROLES.map((r) => (
-              <button
-                type="button"
-                key={r}
-                onClick={() => toggleRole(r)}
-                className={`rounded-full border px-3 py-1 text-[12px] font-medium transition-colors ${roles.includes(r) ? "border-primary bg-primary/10 text-primary" : "border-border text-text-secondary hover:bg-slate-50"}`}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
-        </div>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-text-secondary">Scope</span>
-          {lockedWholeOrg ? (
-            <div data-testid="scope-locked" className={`${INPUT_CLASS} bg-app text-text-secondary`}>
-              Whole Org <span className="text-[11px]">(always, for Admin / Portfolio Manager)</span>
-            </div>
-          ) : (
-            <ScopeSelect tree={scopeTree} value={scope} onChange={setScope} className={INPUT_CLASS} />
-          )}
-        </label>
+        <RoleAssignmentsEditor rows={rows} onChange={setRows} scopeTree={scopeTree} />
         {error && <div className="rounded-sm border border-danger/30 bg-danger/5 px-3 py-2 text-[13px] text-danger">{error}</div>}
       </form>
     </Modal>

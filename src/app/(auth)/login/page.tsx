@@ -1,5 +1,6 @@
 "use client";
 
+import { securePost } from "@/lib/client/secureFetch";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -38,11 +39,7 @@ export default function LoginPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
+      const res = await securePost("/api/auth/login", { email, password });
       const data = await res.json();
       if (!res.ok) {
         setError(
@@ -53,7 +50,7 @@ export default function LoginPage() {
         );
         return;
       }
-      router.push("/workspaces");
+      router.push(data.needsSelect ? "/select-org" : "/workspaces");
       router.refresh();
     } finally {
       setLoading(false);

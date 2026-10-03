@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getWorkspaceTree, scopeFilterWorkspace, toCardItem, toTreeNode } from "@/lib/tree";
-import { getSessionUserCached } from "@/lib/auth/session";
+import { requireUser } from "@/lib/auth/session";
+import { buildPermResolver, getPerms, stampPerms } from "@/lib/auth/perms";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PageHeader } from "@/components/PageHeader";
 import { HierarchyLevelClient } from "@/components/HierarchyLevelClient";
@@ -12,11 +13,12 @@ export default async function ProgramsPage({
 }: {
   params: { workspaceSlug: string; initiativeSlug: string };
 }) {
-  const user = (await getSessionUserCached())!;
+  const user = await requireUser();
   const fetched = await getWorkspaceTree(params.workspaceSlug, user.organizationId);
   const workspace = await scopeFilterWorkspace(fetched, user.assignments);
   const initiative = workspace?.initiatives.find((i) => i.slug === params.initiativeSlug);
   if (!workspace || !initiative) notFound();
+  stampPerms(workspace as never, "workspace", await buildPermResolver(user));
 
   const basePath = `/workspaces/${workspace.slug}/${initiative.slug}`;
 
@@ -37,6 +39,7 @@ export default async function ProgramsPage({
         childLevel="project"
         basePath={basePath}
         parentId={initiative.id}
+        canCreate={getPerms(initiative).createChild}
       />
     </div>
   );

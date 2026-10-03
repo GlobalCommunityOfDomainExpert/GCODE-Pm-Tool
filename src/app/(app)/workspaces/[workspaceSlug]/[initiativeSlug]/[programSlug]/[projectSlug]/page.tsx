@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getWorkspaceTree, scopeFilterWorkspace, toTaskItem } from "@/lib/tree";
-import { getSessionUserCached } from "@/lib/auth/session";
+import { requireUser } from "@/lib/auth/session";
+import { buildPermResolver, getPerms, stampPerms } from "@/lib/auth/perms";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PageHeader } from "@/components/PageHeader";
 import { TaskKanbanBoard } from "@/components/TaskKanbanBoard";
@@ -12,13 +13,14 @@ export default async function TaskBoardPage({
 }: {
   params: { workspaceSlug: string; initiativeSlug: string; programSlug: string; projectSlug: string };
 }) {
-  const user = (await getSessionUserCached())!;
+  const user = await requireUser();
   const fetched = await getWorkspaceTree(params.workspaceSlug, user.organizationId);
   const workspace = await scopeFilterWorkspace(fetched, user.assignments);
   const initiative = workspace?.initiatives.find((i) => i.slug === params.initiativeSlug);
   const program = initiative?.programs.find((p) => p.slug === params.programSlug);
   const project = program?.projects.find((p) => p.slug === params.projectSlug);
   if (!workspace || !initiative || !program || !project) notFound();
+  stampPerms(workspace as never, "workspace", await buildPermResolver(user));
 
   return (
     <div>
@@ -35,7 +37,7 @@ export default async function TaskBoardPage({
         ]}
       />
       <PageHeader title={project.name} description={project.description} logoData={workspace.logoData} />
-      <TaskKanbanBoard projectId={project.id} initialTasks={project.tasks.map(toTaskItem)} />
+      <TaskKanbanBoard projectId={project.id} initialTasks={project.tasks.map(toTaskItem)} canCreateTask={getPerms(project).createChild} />
     </div>
   );
 }

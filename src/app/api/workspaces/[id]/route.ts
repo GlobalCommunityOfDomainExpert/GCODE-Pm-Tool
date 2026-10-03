@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assertTextLimits } from "@/lib/validation";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { withCapability, ApiError } from "@/lib/auth/requireCapability";
@@ -21,6 +22,7 @@ export const PATCH = withCapability("Create/Edit Workspaces", async (req, { para
   }
 
   const body = await req.json();
+  assertTextLimits(body);
   if ("accountableId" in body) {
     await assertAssigneeAllowed(user.organizationId, "workspace", params.id, body.accountableId);
   }

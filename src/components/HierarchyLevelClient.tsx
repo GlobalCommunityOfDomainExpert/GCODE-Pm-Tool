@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useLiveRefresh } from "@/lib/client/useLiveRefresh";
 import type { Assignee, HierarchyCardItem, HierarchyLevel, TreeNode } from "@/lib/types";
 import { LEVEL_LABEL } from "@/lib/types";
 import { LEVEL_ENDPOINT } from "@/lib/endpoints";
@@ -66,6 +68,7 @@ export function HierarchyLevelClient({
   childLevel,
   basePath,
   parentId,
+  canCreate,
 }: {
   items: HierarchyCardItem[];
   treeItems: TreeNode[];
@@ -73,11 +76,17 @@ export function HierarchyLevelClient({
   childLevel: HierarchyLevel | null;
   basePath: string;
   parentId: string | null;
+  // Parent node's createChild perm (or org-wide workspace creation) - hides the button, never the server check.
+  canCreate: boolean;
 }) {
   const [items, setItems] = useState(initialItems);
   const [treeItems, setTreeItems] = useState(initialTreeItems);
   const [mode, setMode] = useState<ViewMode>("cards");
   const [showModal, setShowModal] = useState(false);
+  const router = useRouter();
+
+  // EN_008: re-render the server data on focus + every 30s, but never while a create modal is open.
+  useLiveRefresh(() => router.refresh(), { paused: showModal });
 
   // A real navigation (different level/parent) hands us brand-new arrays
   // from the server - resync local state to them instead of carrying stale
@@ -92,8 +101,12 @@ export function HierarchyLevelClient({
   function handleCreated(saved?: Record<string, unknown>) {
     if (!saved) return;
     const row = saved as unknown as SavedRow;
-    setItems((prev) => [...prev, toCardItem(row)]);
-    setTreeItems((prev) => [...prev, toTreeNode(row, level)]);
+    // The creator just proved they can create here, which is the same
+    // capability as edit/delete on the new node. createChild is unknown
+    // until the next server render, and nothing on this page reads it.
+    const perms = { edit: true, delete: true, createChild: false };
+    setItems((prev) => [...prev, { ...toCardItem(row), perms }]);
+    setTreeItems((prev) => [...prev, { ...toTreeNode(row, level), perms }]);
   }
 
   function handleItemUpdated(saved?: Record<string, unknown>) {
@@ -137,15 +150,17 @@ export function HierarchyLevelClient({
     <div>
       <div className="mb-6 flex items-center justify-between">
         <ViewToggle mode={mode} onChange={setMode} />
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 rounded-sm bg-primary px-4 py-2 text-[13px] font-medium text-white hover:bg-primary-hover"
-        >
-          <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" d="M12 5v14M5 12h14" />
-          </svg>
-          New {LEVEL_LABEL[level]}
-        </button>
+        {canCreate && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 rounded-sm bg-primary px-4 py-2 text-[13px] font-medium text-white hover:bg-primary-hover"
+          >
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" d="M12 5v14M5 12h14" />
+            </svg>
+            New {LEVEL_LABEL[level]}
+          </button>
+        )}
       </div>
 
       {mode === "cards" ? (

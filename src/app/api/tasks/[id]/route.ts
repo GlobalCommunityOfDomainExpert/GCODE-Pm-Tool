@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { assertTextLimits } from "@/lib/validation";
 import { revalidateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireSession, ApiError } from "@/lib/auth/requireCapability";
@@ -7,34 +8,38 @@ import { assertAssigneeAllowed } from "@/lib/auth/scope";
 import { canOnNode } from "@/lib/auth/access";
 import { assertNodeInOrg } from "@/lib/auth/org";
 
-// Two ways in: a manager with "Create/Edit Tasks" can change any field on any
-// in-scope task; a Team Member with only "Execute Assigned Tasks" can change
-// status alone (the kanban drag-and-drop). NOTE: the spec's "further narrowed
-// to tasks where responsible_id = caller" still isn't enforced here -
-// Task.responsibleId now points at User (real accounts, see migration
-// 20260919_repoint_accountable_responsible_to_user), so `responsibleId ===
-// user.id` is available, but restricting kanban drag-and-drop to only your
-// own tasks is a product decision, not implied by this migration - out of
-// scope here. Until that's decided, any Team Member can still move the
-// status of any in-scope task, not just their own assignment.
+// Three ways in, checked in this order:
+// 1. Person responsible (EN_021): whoever the task is assigned to can edit
+//    every field and delete THAT task, whatever their role or scope - and
+//    only that task. Creating tasks is not implied (the task already exists).
+// 2. A manager with "Create/Edit Tasks" covering the task's project can
+//    change any field on any in-scope task.
+// 3. A Team Member with only "Execute Assigned Tasks" can change status alone
+//    (the kanban drag-and-drop). NOTE: the spec's "narrowed to tasks where
+//    responsible_id = caller" still isn't enforced for this path - any Team
+//    Member can still move the status of any in-scope task. That's a product
+//    decision (D4 covers only the responsible person's *extra* rights).
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireSession();
-    const capabilities = await getCapabilitiesForRoles(user.organizationId, user.roles);
-    if (!capabilities.has("Create/Edit Tasks") && !capabilities.has("Execute Assigned Tasks")) {
-      throw new ApiError(403, "You don't have permission to do that.");
-    }
-
     await assertNodeInOrg("task", params.id, user.organizationId);
-    const projectId = await projectIdForTask(params.id);
-    // Per-node: an assignment must hold the capability AND cover this project.
-    const canEditFully = await canOnNode(user, "Create/Edit Tasks", "project", projectId);
-    const canExecute = canEditFully || (await canOnNode(user, "Execute Assigned Tasks", "project", projectId));
-    if (!canEditFully && !canExecute) {
-      throw new ApiError(403, "This task is outside your scope.");
+    const { projectId, responsibleId } = await taskOwnership(params.id);
+    const isResponsible = responsibleId === user.id;
+
+    let canEditFully = isResponsible;
+    if (!canEditFully) {
+      const capabilities = await getCapabilitiesForRoles(user.organizationId, user.roles);
+      if (!capabilities.has("Create/Edit Tasks") && !capabilities.has("Execute Assigned Tasks")) {
+        throw new ApiError(403, "You don't have permission to do that.");
+      }
+      // Per-node: an assignment must hold the capability AND cover this project.
+      canEditFully = await canOnNode(user, "Create/Edit Tasks", "project", projectId);
+      const canExecute = canEditFully || (await canOnNode(user, "Execute Assigned Tasks", "project", projectId));
+      if (!canExecute) throw new ApiError(403, "This task is outside your scope.");
     }
 
     const body = await req.json();
+    assertTextLimits(body);
     const bodyKeys = Object.keys(body);
     if (!canEditFully) {
       const allowedKeys = new Set(["status"]);
@@ -72,11 +77,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   try {
     const user = await requireSession();
-    const capabilities = await getCapabilitiesForRoles(user.organizationId, user.roles);
-    if (!capabilities.has("Create/Edit Tasks")) throw new ApiError(403, "You don't have permission to do that.");
     await assertNodeInOrg("task", params.id, user.organizationId);
-    if (!(await canOnNode(user, "Create/Edit Tasks", "project", await projectIdForTask(params.id)))) {
-      throw new ApiError(403, "This task is outside your scope.");
+    const { projectId, responsibleId } = await taskOwnership(params.id);
+
+    if (responsibleId !== user.id) {
+      const capabilities = await getCapabilitiesForRoles(user.organizationId, user.roles);
+      if (!capabilities.has("Create/Edit Tasks")) throw new ApiError(403, "You don't have permission to do that.");
+      if (!(await canOnNode(user, "Create/Edit Tasks", "project", projectId))) {
+        throw new ApiError(403, "This task is outside your scope.");
+      }
     }
 
     await prisma.task.delete({ where: { id: params.id } });
@@ -89,8 +98,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
   }
 }
 
-async function projectIdForTask(taskId: string): Promise<string> {
-  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { projectId: true } });
+async function taskOwnership(taskId: string): Promise<{ projectId: string; responsibleId: string | null }> {
+  const task = await prisma.task.findUnique({ where: { id: taskId }, select: { projectId: true, responsibleId: true } });
   if (!task) throw new ApiError(404, "Task not found.");
-  return task.projectId;
+  return task;
 }

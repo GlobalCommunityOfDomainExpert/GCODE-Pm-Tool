@@ -4,13 +4,13 @@ import { withCapability, ApiError } from "@/lib/auth/requireCapability";
 import { randomToken, hashToken } from "@/lib/auth/tokens";
 import { sendMail, magicLinkEmail } from "@/lib/mailer";
 import { mailDisplayName } from "@/lib/auth/scopeLabel";
-import { assertValidAccess } from "@/lib/auth/roleRules";
-import { syncRoleAssignments } from "@/lib/auth/assignments";
+import { normalizeAccess } from "@/lib/auth/roleRules";
+import { assignmentsOfUser, setRoleAssignments } from "@/lib/auth/assignments";
 
 const TOKEN_TTL_MS = 72 * 60 * 60 * 1000;
 
 async function loadTargetOrThrow(organizationId: string, id: string) {
-  const target = await prisma.user.findFirst({ where: { id, organizationId } });
+  const target = await prisma.user.findFirst({ where: { id, organizationId }, include: { roleAssignments: true } });
   if (!target) throw new ApiError(404, "Team member not found.");
   return target;
 }
@@ -24,24 +24,22 @@ export const PATCH = withCapability("Manage Team Members", async (req: NextReque
   const target = await loadTargetOrThrow(admin.organizationId, params.id);
 
   if (action === "edit") {
-    const roles: string[] = Array.isArray(body?.roles) && body.roles.length ? body.roles : ["Team Member"];
-    const scope: string | null = body?.scope ?? null;
-    assertValidAccess(roles, scope);
+    const { assignments, roles, scope } = await normalizeAccess(admin.organizationId, body);
 
     // Only an actual access change signs the person out (EN_018) - re-saving
-    // identical roles/scope is a no-op. Never the admin's own sessions, so
-    // editing yourself can't lock you out mid-action.
-    const sameRoles = [...new Set(roles)].sort().join("|") === [...new Set(target.roles)].sort().join("|");
-    const accessChanged = !sameRoles || (scope ?? null) !== (target.scope ?? null);
+    // identical access is a no-op. Never the admin's own sessions, so editing
+    // yourself can't lock you out mid-action.
+    const key = (list: { role: string; scope: string | null }[]) => list.map((x) => `${x.role}@${x.scope ?? ""}`).sort().join("|");
+    const accessChanged = key(assignments) !== key(assignmentsOfUser(target));
     const revoke = accessChanged && target.id !== admin.id;
 
     const updated = await prisma.$transaction(async (tx) => {
       const u = await tx.user.update({ where: { id: target.id }, data: { roles, scope } });
-      await syncRoleAssignments(tx, target.id, roles, scope);
+      await setRoleAssignments(tx, target.id, assignments);
       if (revoke) await tx.session.updateMany({ where: { userId: target.id, revokedAt: null }, data: { revokedAt: new Date() } });
       return u;
     });
-    return NextResponse.json({ id: updated.id, roles: updated.roles, scope: updated.scope, signedOut: revoke })
+    return NextResponse.json({ id: updated.id, roles: updated.roles, scope: updated.scope, assignments, signedOut: revoke });
   }
 
   if (params.id === admin.id) {

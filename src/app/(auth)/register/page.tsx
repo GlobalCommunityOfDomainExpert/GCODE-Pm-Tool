@@ -1,5 +1,6 @@
 "use client";
 
+import { securePost } from "@/lib/client/secureFetch";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -31,11 +32,7 @@ export default function RegisterPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/register-org", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgName, name, email, password }),
-      });
+      const res = await securePost("/api/auth/register-org", { orgName, name, email, password });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Something went wrong.");
@@ -53,11 +50,7 @@ export default function RegisterPage() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch("/api/auth/register-org/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp }),
-      });
+      const res = await securePost("/api/auth/register-org/verify-otp", { email, otp });
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || "Something went wrong.");
