@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { HierarchyLevel } from "@/lib/types";
 import { LEVEL_LABEL } from "@/lib/types";
-import { checkMove, countTasks, findNode, flatten, levelNo, type MoveNode } from "@/lib/move/plan";
+import { checkMove, countTasks, findNode, flatten, fillLevelsFor, levelNo, type MoveNode } from "@/lib/move/plan";
 import { apiFetch } from "@/lib/client/apiFetch";
 import { mutate } from "./ActionToast";
 import { Modal } from "./Modal";
 import { Spinner } from "./Spinner";
+import { NAME_MAX } from "@/lib/limits";
 
 const TAG = (level: HierarchyLevel) => `L${levelNo(level)}`;
 
@@ -37,6 +38,7 @@ export function MoveItemModal({
   const [step, setStep] = useState<Step>("pick");
   const [targetId, setTargetId] = useState<string | null>(null);
   const [deleteIds, setDeleteIds] = useState<Set<string>>(new Set());
+  const [fillNames, setFillNames] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -80,9 +82,13 @@ export function MoveItemModal({
     return null;
   }, [forest, targetId]);
 
+  // Moving up with tasks inside: one name per level that has to be created.
+  const fillLevels = useMemo(() => (source && target ? fillLevelsFor(source, levelNo(target.level)) : []), [source, target]);
+  const names = useMemo(() => fillLevels.map((_, i) => fillNames[i] ?? ""), [fillLevels, fillNames]);
+
   const check = useMemo(
-    () => (source && target ? checkMove(source, levelNo(target.level), deleteIds) : null),
-    [source, target, deleteIds]
+    () => (source && target ? checkMove(source, levelNo(target.level), deleteIds, names) : null),
+    [source, target, deleteIds, names]
   );
 
   // Items inside the moved subtree can't be targets (that would nest it in itself).
@@ -91,6 +97,7 @@ export function MoveItemModal({
   function pickTarget(node: MoveNode) {
     setTargetId(node.id);
     setDeleteIds(new Set());
+    setFillNames([]);
     setStep("confirm");
   }
 
@@ -116,6 +123,7 @@ export function MoveItemModal({
           targetId: target.id,
           targetLevel: target.level,
           deleteIds: [...deleteIds],
+          fillNames: names.map((n) => n.trim()),
         }),
       });
       if (await mutate(res, { success: `${LEVEL_LABEL[level]} moved.`, failure: "Couldn't move this item." })) {
@@ -173,7 +181,7 @@ export function MoveItemModal({
 
         {forest && source && step === "pick" && (
           <div>
-            <p className="mb-3 text-[13px] text-text-secondary">Choose the item it should go under. Tasks can only go under a project.</p>
+            <p className="mb-3 text-[13px] text-text-secondary">Choose the item it should go under. If tasks end up with no project above them, you will be asked to name the missing level.</p>
             <div className="max-h-[50vh] overflow-y-auto rounded-md border border-border py-1">
               {forest.map((root) => (
                 <PickRow key={root.id} node={root} depth={0} blocked={blocked} currentParent={parentOfSource} onPick={pickTarget} />
@@ -214,6 +222,35 @@ export function MoveItemModal({
               <div data-testid="move-delete-summary" className="rounded-md border border-danger/30 bg-danger/5 px-4 py-3 text-danger">
                 Will be permanently deleted ({check.deleted.length}):{" "}
                 {check.deleted.map((d) => `${d.name} (${LEVEL_LABEL[d.level]})`).join(", ")}. Role assignments scoped to them are dropped. Their children are kept.
+              </div>
+            )}
+
+            {check.fillLevels.length > 0 && (
+              <div data-testid="move-fill" className="rounded-md border border-sky-300 bg-sky-50 px-4 py-3">
+                <div className="font-semibold text-sky-900">
+                  Fill the gap - name the new {check.fillLevels.map((l) => `${TAG(l)} ${LEVEL_LABEL[l]}`).join(" and ")}
+                </div>
+                <p className="mt-1 text-sky-900">
+                  Tasks must sit under a {LEVEL_LABEL.project}. {check.fillBranches > 1 ? `One is created in each of the ${check.fillBranches} branches that have tasks, ` : "It is created "}
+                  to hold the tasks.
+                </p>
+                <div className="mt-3 space-y-2">
+                  {check.fillLevels.map((l, i) => (
+                    <label key={l} className="block">
+                      <span className="mb-1 block text-[12px] font-medium text-sky-900">
+                        New {TAG(l)} {LEVEL_LABEL[l]} name
+                      </span>
+                      <input
+                        data-testid={`move-fill-${i}`}
+                        value={names[i]}
+                        maxLength={NAME_MAX}
+                        placeholder={`e.g. ${LEVEL_LABEL[l]} name`}
+                        onChange={(e) => setFillNames(names.map((n, j) => (j === i ? e.target.value : n)))}
+                        className="w-full rounded-md border border-sky-200 bg-white px-3 py-2 text-[13px] outline-none focus:border-primary"
+                      />
+                    </label>
+                  ))}
+                </div>
               </div>
             )}
 

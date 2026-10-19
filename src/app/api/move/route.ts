@@ -3,6 +3,7 @@ import { revalidateTag } from "next/cache";
 import { withSession, ApiError } from "@/lib/auth/requireCapability";
 import { isOrgAdmin } from "@/lib/auth/access";
 import { assertNodeInOrg } from "@/lib/auth/org";
+import { assertTextLimits } from "@/lib/validation";
 import { loadOrgTree, moveItem } from "@/lib/move/execute";
 import type { HierarchyLevel } from "@/lib/types";
 
@@ -24,6 +25,8 @@ export const POST = withSession(async (req, _ctx, user) => {
   const sourceLevel = body?.sourceLevel as HierarchyLevel;
   const targetLevel = body?.targetLevel as HierarchyLevel;
   const deleteIds: string[] = Array.isArray(body?.deleteIds) ? body.deleteIds.filter((x: unknown) => typeof x === "string") : [];
+  const fillNames: string[] = Array.isArray(body?.fillNames) ? body.fillNames.filter((x: unknown) => typeof x === "string") : [];
+  for (const n of fillNames) assertTextLimits({ name: n });
   if (!sourceId || !targetId || !LEVELS.includes(sourceLevel) || !LEVELS.includes(targetLevel)) {
     throw new ApiError(400, "Pick an item and where to move it.");
   }
@@ -32,7 +35,7 @@ export const POST = withSession(async (req, _ctx, user) => {
   await assertNodeInOrg(sourceLevel, sourceId, user.organizationId);
   await assertNodeInOrg(targetLevel, targetId, user.organizationId);
 
-  const result = await moveItem(user.organizationId, { sourceId, targetId, deleteIds });
+  const result = await moveItem(user.organizationId, { sourceId, targetId, deleteIds, fillNames });
 
   revalidateTag(`tree:${user.organizationId}`);
   return NextResponse.json(result);
