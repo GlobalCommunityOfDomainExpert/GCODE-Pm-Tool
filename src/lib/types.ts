@@ -16,6 +16,8 @@ export interface Perms {
   delete: boolean;
   createChild: boolean;
   changeStatus?: boolean;
+  // Admin-only "Move to..." (src/lib/move). Optional so older literals stay valid.
+  move?: boolean;
 }
 
 // Containers (L1-L4) reuse this shape; tasks (L5) are rendered by the Kanban board instead.

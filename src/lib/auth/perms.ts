@@ -38,6 +38,7 @@ export async function buildPermResolver(user: Actor) {
     roles.map(async (role) => capsByRole.set(role, await getCapabilitiesForRoles(user.organizationId, [role])))
   );
 
+  const isAdmin = user.assignments.some((a) => a.role === "Admin" && !a.scope);
   const scopeIds = user.assignments.map((a) => ({ role: a.role, scopeId: parseScope(a.scope)?.id ?? null, hasScope: !!a.scope }));
 
   // A dangling/garbage scope string (hasScope but unparseable) covers nothing.
@@ -55,6 +56,7 @@ export async function buildPermResolver(user: Actor) {
       edit,
       delete: edit, // same capability on the server (EN_021: responsible gets both)
       createChild: childLevel ? allowed(EDIT_CAP[childLevel], ancestorsAndSelf) : false,
+      move: isAdmin,
     };
     if (level === "task") perms.changeStatus = edit || allowed("Execute Assigned Tasks", ancestorsAndSelf);
     return perms;

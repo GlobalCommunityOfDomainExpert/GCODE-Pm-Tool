@@ -7,6 +7,7 @@ import { LEVEL_LABEL } from "@/lib/types";
 import { Avatar, StatusBadge } from "./Badges";
 import { ConfirmDeleteModal } from "./ConfirmDeleteModal";
 import { CreateItemModal } from "./CreateItemModal";
+import { MoveItemModal } from "./MoveItemModal";
 import { LEVEL_ICON_PATH } from "@/lib/levelIcons";
 
 const LEVEL_ICON: Record<HierarchyLevel, { bg: string; fg: string; path: string }> = {
@@ -35,6 +36,7 @@ export function HierarchyCardGrid({
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<HierarchyCardItem | null>(null);
   const [editTarget, setEditTarget] = useState<HierarchyCardItem | null>(null);
+  const [moveTarget, setMoveTarget] = useState<HierarchyCardItem | null>(null);
 
   useEffect(() => {
     if (!menuOpenId) return;
@@ -73,7 +75,7 @@ export function HierarchyCardGrid({
           key={item.id}
           className="relative flex h-full flex-col rounded-lg border border-border bg-surface p-5 shadow-card transition-transform hover:-translate-y-0.5 hover:shadow-md"
         >
-          {(item.perms?.edit || item.perms?.delete) && (
+          {(item.perms?.edit || item.perms?.delete || item.perms?.move) && (
           <div data-kebab-container className="absolute right-3 top-3 z-20">
             <button
               onClick={(e) => {
@@ -82,6 +84,7 @@ export function HierarchyCardGrid({
                 setMenuOpenId(menuOpenId === item.id ? null : item.id);
               }}
               className="flex h-7 w-7 items-center justify-center rounded text-text-secondary hover:bg-slate-100"
+              data-testid={`item-actions-${item.id}`}
               aria-label="Item actions"
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor">
@@ -106,6 +109,21 @@ export function HierarchyCardGrid({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                   </svg>
                   Edit
+                </button>
+                )}
+                {item.perms?.move && (
+                <button
+                  data-testid={`move-action-${item.id}`}
+                  onClick={() => {
+                    setMenuOpenId(null);
+                    setMoveTarget(item);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-text-primary hover:bg-slate-100"
+                >
+                  <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 9l-3 3 3 3M9 5l3-3 3 3M15 19l-3 3-3-3M19 9l3 3-3 3M2 12h20M12 2v20" />
+                  </svg>
+                  Move to…
                 </button>
                 )}
                 {item.perms?.delete && (
@@ -188,6 +206,8 @@ export function HierarchyCardGrid({
           onConfirm={handleDelete}
         />
       )}
+
+      {moveTarget && <MoveItemModal level={level} id={moveTarget.id} name={moveTarget.name} onClose={() => setMoveTarget(null)} />}
 
       {editTarget && (
         <CreateItemModal level={level} editItem={editTarget} onClose={() => setEditTarget(null)} onSaved={onItemUpdated} />

@@ -7,6 +7,7 @@ import { PriorityBadge, Avatar } from "./Badges";
 import { mutate } from "./ActionToast";
 import { apiFetch } from "@/lib/client/apiFetch";
 import { Spinner } from "./Spinner";
+import { MoveItemModal } from "./MoveItemModal";
 import { DESCRIPTION_MAX } from "@/lib/limits";
 
 const STATUS_COLOR: Record<string, string> = {
@@ -38,6 +39,7 @@ export function TaskDetailPanel({
   const [savingDescription, setSavingDescription] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [moving, setMoving] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -128,7 +130,7 @@ export function TaskDetailPanel({
             <span className="text-[12px] font-mono text-text-secondary">{ticketCode}</span>
           </div>
           <div className="flex items-center gap-1">
-            {(perms.edit || perms.delete) && (
+            {(perms.edit || perms.delete || perms.move) && (
             <div ref={menuRef} className="relative">
               <button
                 onClick={() => setMenuOpen((v) => !v)}
@@ -152,6 +154,18 @@ export function TaskDetailPanel({
                       className="block w-full px-3 py-1.5 text-left text-[13px] text-text-primary hover:bg-slate-100"
                     >
                       Edit
+                    </button>
+                  )}
+                  {perms.move && (
+                    <button
+                      data-testid="task-move-action"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setMoving(true);
+                      }}
+                      className="block w-full px-3 py-1.5 text-left text-[13px] text-text-primary hover:bg-slate-100"
+                    >
+                      Move to…
                     </button>
                   )}
                   {perms.delete && (
@@ -227,6 +241,7 @@ export function TaskDetailPanel({
           </div>
         </div>
       </div>
+      {moving && <MoveItemModal level="task" id={task.id} name={task.title} onClose={() => setMoving(false)} onMoved={onClose} />}
     </div>,
     document.body
   );

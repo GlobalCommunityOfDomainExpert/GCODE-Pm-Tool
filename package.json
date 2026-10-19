@@ -11,7 +11,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed": "tsx prisma/seed.ts",
-    "prisma:seed:rbac": "tsx prisma/seed-rbac.ts"
+    "prisma:seed:rbac": "tsx prisma/seed-rbac.ts",
+    "e2e:db": "docker run -d --name gcode-e2e-pg -e POSTGRES_PASSWORD=e2e -e POSTGRES_DB=gcode_e2e -p 127.0.0.1:15432:5432 postgres:16-alpine",
+    "test:e2e": "playwright test"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
@@ -26,6 +28,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20.16.5",
     "@types/nodemailer": "^8.0.2",
