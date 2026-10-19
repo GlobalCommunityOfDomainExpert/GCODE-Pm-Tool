@@ -45,6 +45,11 @@ export function isOrgWide(user: Pick<SessionUser, "assignments">): boolean {
   return user.assignments.some((a) => a.role === "Admin" || !a.scope);
 }
 
+// Strictly an Admin (roleRules.ts keeps Admin whole-org, so scope is always null).
+export function isOrgAdmin(user: Pick<SessionUser, "assignments">): boolean {
+  return user.assignments.some((a) => a.role === "Admin" && !a.scope);
+}
+
 // Distinct non-null scopes across the user's assignments.
 export function scopedScopes(user: Pick<SessionUser, "assignments">): string[] {
   return [...new Set(user.assignments.map((a) => a.scope).filter((s): s is string => !!s))];
