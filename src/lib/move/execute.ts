@@ -76,6 +76,8 @@ export interface MoveRequest {
   sourceId: string;
   targetId: string;
   deleteIds: string[];
+  // Names for containers created when moving up with tasks inside (see plan.fillLevelsFor).
+  fillNames: string[];
 }
 
 export interface MoveResult {
@@ -113,7 +115,8 @@ export async function moveItem(organizationId: string, req: MoveRequest): Promis
   if (currentParent === tgt.node.id) throw new ApiError(400, "This item is already there.");
 
   const deleteSet = new Set(req.deleteIds);
-  const check = checkMove(src.node, levelNo(tgt.node.level), deleteSet);
+  const fillNames = req.fillNames.map((n) => n.trim());
+  const check = checkMove(src.node, levelNo(tgt.node.level), deleteSet, fillNames);
   if (!check.ok) throw new ApiError(400, check.errors[0] || "That move isn't valid.");
 
   const taskIds = flatten(src.node).filter((n) => n.level === "task").map((n) => n.id);
@@ -129,6 +132,8 @@ export async function moveItem(organizationId: string, req: MoveRequest): Promis
         removedScopes: [] as string[],
         movedRootNewId: null as string | null,
         movedRootLevel: levelAt(check.newRootLevel),
+        fillLevels: check.fillLevels,
+        fillNames,
       };
 
       await place(ctx, src.node, { level: tgt.node.level as ContainerLevel, id: tgt.node.id }, 0, true);
@@ -174,6 +179,8 @@ type Ctx = {
   removedScopes: string[];
   movedRootNewId: string | null;
   movedRootLevel: HierarchyLevel;
+  fillLevels: HierarchyLevel[];
+  fillNames: string[];
 };
 
 // Re-homes `node` (and recursively its children) under `parent`. `deletedAbove`
@@ -194,7 +201,10 @@ async function place(ctx: Ctx, node: MoveNode, parent: { level: ContainerLevel; 
   const newNo = orig + ctx.shift - deletedAbove;
 
   if (node.level === "task") {
-    await tx.task.update({ where: { id: node.id }, data: { projectId: parent.id } });
+    // A task moved on its own lands straight under the target: any missing
+    // levels in between are created first (named by the admin).
+    const holder = isRoot && ctx.fillLevels.length > 0 ? await createFill(ctx, parent) : parent;
+    await tx.task.update({ where: { id: node.id }, data: { projectId: holder.id } });
     if (isRoot) ctx.movedRootNewId = node.id;
     return;
   }
@@ -218,7 +228,31 @@ async function place(ctx: Ctx, node: MoveNode, parent: { level: ContainerLevel; 
     ctx.movedRootNewId = self.id;
     ctx.movedRootLevel = self.level;
   }
-  for (const c of node.children) await place(ctx, c, self, deletedAbove);
+  // Moving up with tasks: the project that held them is now too high, so new
+  // containers fill the gap between it and its tasks.
+  const childParent = ctx.fillLevels.length > 0 && kind === "project" && node.children.length > 0 ? await createFill(ctx, self) : self;
+  for (const c of node.children) await place(ctx, c, childParent, deletedAbove);
+}
+
+// Creates the chain of new containers (one per fill level, named by the admin)
+// under `parent` and returns the innermost - where the tasks then attach.
+async function createFill(ctx: Ctx, parent: { level: ContainerLevel; id: string }): Promise<{ level: ContainerLevel; id: string }> {
+  let current = parent;
+  for (let i = 0; i < ctx.fillLevels.length; i++) {
+    const kind = ctx.fillLevels[i] as ContainerLevel;
+    const name = ctx.fillNames[i];
+    const slug = await siblingSlug(ctx.tx, kind, current, name);
+    const id = await createContainer(ctx.tx, kind, current, { name, slug });
+    current = { level: kind, id };
+  }
+  return current;
+}
+
+async function createContainer(tx: Tx, kind: ContainerLevel, parent: { id: string }, c: { name: string; slug: string }): Promise<string> {
+  if (kind === "initiative") return (await tx.initiative.create({ data: { ...c, workspaceId: parent.id }, select: { id: true } })).id;
+  if (kind === "program") return (await tx.program.create({ data: { ...c, initiativeId: parent.id }, select: { id: true } })).id;
+  if (kind === "project") return (await tx.project.create({ data: { ...c, programId: parent.id }, select: { id: true } })).id;
+  throw new ApiError(400, "Nothing can be created at the top level.");
 }
 
 async function siblingSlug(tx: Tx, kind: ContainerLevel, parent: { id: string }, name: string, excludeId?: string): Promise<string> {

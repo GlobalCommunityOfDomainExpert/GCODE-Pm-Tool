@@ -135,23 +135,71 @@ test("moving a whole initiative into a project needs all three levels removed; t
   expect(after).toEqual({ ...before, initiatives: before.initiatives - 1, programs: before.programs - 1, projects: before.projects - 1 });
 });
 
-test("task move: only a project is a valid parent, then the task changes project", async ({ page }) => {
+test("task move under a project: no gap, task changes project", async ({ page }) => {
   await page.goto(PAGE.boardAlpha);
   await page.getByText("Task One").first().click();
   await page.getByLabel("More actions").click();
   await page.getByTestId("task-move-action").click();
   await expect(page.getByTestId("move-modal")).toBeVisible();
-
-  await pickTarget(page, ID.pgB); // a program - not valid for a task
-  await expect(page.getByTestId("move-errors")).toBeVisible();
-  await expect(page.getByTestId("move-confirm")).toBeDisabled();
-  await page.getByRole("button", { name: "Back" }).click();
-
   await pickTarget(page, ID.pjB);
-  await expect(page.getByTestId("move-errors")).toHaveCount(0);
+  await expect(page.getByTestId("move-fill")).toHaveCount(0);
   await page.getByTestId("move-confirm").click();
   await expect(page.getByTestId("move-modal")).toHaveCount(0);
   expect((await db().task.findUnique({ where: { id: ID.t1 } }))?.projectId).toBe(ID.pjB);
+});
+
+test("task moved under a program: admin names the missing project, task lands in it", async ({ page }) => {
+  const before = await counts();
+  await page.goto(PAGE.boardAlpha);
+  await page.getByText("Task One").first().click();
+  await page.getByLabel("More actions").click();
+  await page.getByTestId("task-move-action").click();
+  await pickTarget(page, ID.pgB);
+  await expect(page.getByTestId("move-fill")).toBeVisible();
+  await expect(page.getByTestId("move-confirm")).toBeDisabled(); // no name yet
+  await page.getByTestId("move-fill-0").fill("Inbox Project");
+  await expect(page.getByTestId("move-confirm")).toBeEnabled();
+  await page.getByTestId("move-confirm").click();
+  await expect(page.getByTestId("move-modal")).toHaveCount(0);
+
+  const holder = await db().project.findFirst({ where: { name: "Inbox Project" } });
+  expect(holder?.programId).toBe(ID.pgB);
+  expect((await db().task.findUnique({ where: { id: ID.t1 } }))?.projectId).toBe(holder!.id);
+  const after = await counts();
+  expect(after).toEqual({ ...before, projects: before.projects + 1 });
+});
+
+test("a project moved up a level: names the missing project; tasks and their project data survive", async ({ page }) => {
+  const before = await counts();
+  await openMove(page, "/workspaces/alpha-ws/alpha-init/alpha-prog", ID.pjA);
+  await pickTarget(page, ID.inB); // Initiative: project becomes a Program, tasks need a new Project
+  await expect(page.getByTestId("move-overflow")).toHaveCount(0);
+  await expect(page.getByTestId("move-fill")).toBeVisible();
+  await expect(page.getByTestId("move-confirm")).toBeDisabled();
+  await page.getByTestId("move-fill-0").fill("Alpha Work");
+  await page.getByTestId("move-confirm").click();
+  await expect(page.getByTestId("move-modal")).toHaveCount(0);
+
+  const p = db();
+  expect(await p.project.findUnique({ where: { id: ID.pjA } })).toBeNull();
+  const prog = await p.program.findFirst({ where: { name: "Alpha Proj" } });
+  expect(prog?.initiativeId).toBe(ID.inB);
+  const holder = await p.project.findFirst({ where: { name: "Alpha Work" } });
+  expect(holder?.programId).toBe(prog!.id);
+  expect((await p.task.findUnique({ where: { id: ID.t1 } }))?.projectId).toBe(holder!.id);
+  expect((await p.task.findUnique({ where: { id: ID.t2 } }))?.projectId).toBe(holder!.id);
+  expect((await p.task.findUnique({ where: { id: ID.t2 } }))?.status).toBe("Completed");
+  const after = await counts();
+  expect(after).toEqual({ ...before, programs: before.programs + 1 }); // project -> program, plus the new project
+});
+
+test("server demands names when a gap must be filled, and refuses them when not", async ({ context }) => {
+  const post = (data: object) => context.request.post(`${BASE}/api/move`, { data });
+  const before = await counts();
+  expect((await post({ sourceId: ID.pjA, sourceLevel: "project", targetId: ID.inB, targetLevel: "initiative", deleteIds: [], fillNames: [] })).status()).toBe(400);
+  expect((await post({ sourceId: ID.pjA, sourceLevel: "project", targetId: ID.inB, targetLevel: "initiative", deleteIds: [], fillNames: ["  "] })).status()).toBe(400);
+  expect((await post({ sourceId: ID.inB2, sourceLevel: "initiative", targetId: ID.wsA, targetLevel: "workspace", deleteIds: [], fillNames: ["x"] })).status()).toBe(400);
+  expect(await counts()).toEqual(before);
 });
 
 test("cancelling at the confirm step changes nothing", async ({ page }) => {
