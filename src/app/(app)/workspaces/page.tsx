@@ -4,6 +4,8 @@ import { buildPermResolver, getPerms, stampPerms } from "@/lib/auth/perms";
 import { Breadcrumbs } from "@/components/Breadcrumbs";
 import { PageHeader } from "@/components/PageHeader";
 import { HierarchyLevelClient } from "@/components/HierarchyLevelClient";
+import { ExcelTransfer } from "@/components/ExcelTransfer";
+import { isOrgAdmin } from "@/lib/auth/access";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,7 @@ export default async function WorkspacesPage() {
     <div>
       <Breadcrumbs items={[{ label: "All Workspaces", href: "/workspaces" }]} />
       <PageHeader title="All Workspaces" />
+      {isOrgAdmin(user) && <ExcelTransfer />}
       <HierarchyLevelClient
         items={workspaces.map(toCardItem)}
         treeItems={workspaces.map((w) => toTreeNode(w, "workspace"))}
